@@ -1,0 +1,10 @@
+/Users/nathan.ellis/Documents/catan-bot/build-asan/CMakeFiles/catan.dir
+/Users/nathan.ellis/Documents/catan-bot/build-asan/CMakeFiles/catan_mcts.dir
+/Users/nathan.ellis/Documents/catan-bot/build-asan/CMakeFiles/catan_debug.dir
+/Users/nathan.ellis/Documents/catan-bot/build-asan/CMakeFiles/catan_cli.dir
+/Users/nathan.ellis/Documents/catan-bot/build-asan/CMakeFiles/catan_tests.dir
+/Users/nathan.ellis/Documents/catan-bot/build-asan/CMakeFiles/catan_full_game_system_test.dir
+/Users/nathan.ellis/Documents/catan-bot/build-asan/CMakeFiles/catan_snapshot.dir
+/Users/nathan.ellis/Documents/catan-bot/build-asan/CMakeFiles/test.dir
+/Users/nathan.ellis/Documents/catan-bot/build-asan/CMakeFiles/edit_cache.dir
+/Users/nathan.ellis/Documents/catan-bot/build-asan/CMakeFiles/rebuild_cache.dir

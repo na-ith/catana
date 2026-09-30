@@ -1,0 +1,1 @@
+/usr/bin/c++ -fsanitize=address,undefined -g -Wl,-search_paths_first -Wl,-headerpad_max_install_names -fsanitize=address,undefined CMakeFiles/catan_full_game_system_test.dir/tests/FullGameSystemTest.cpp.o -o catan_full_game_system_test  libcatan.a

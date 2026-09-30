@@ -1,0 +1,717 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1299" viewBox="0 0 1900 1299" data-position-version="0" data-can-rewind="false" data-tree-running-p1="true" data-tree-running-p2="true">
+<style>
+text { font-family: Inter, ui-sans-serif, system-ui, sans-serif; fill: #25313a; }
+.title { font-size: 24px; font-weight: 700; }
+.heading { font-size: 16px; font-weight: 700; }
+.label { font-size: 13px; }
+.small { font-size: 10px; }
+.tiny { font-size: 8px; }
+.token { font-size: 18px; font-weight: 800; }
+.white { fill: #fff; }
+.mcts-row { font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.mcts-action { cursor: pointer; }
+.chance-random-action { cursor: pointer; }
+.mcts-action.is-hovered rect { stroke: #e67827; stroke-width: 2; }
+.highlightable.is-highlighted { filter: drop-shadow(0 0 4px #f5a04b); }
+polygon.highlightable.is-highlighted { stroke: #f07824 !important; stroke-width: 7 !important; }
+circle.highlightable.is-highlighted { stroke: #f07824 !important; stroke-width: 4 !important; }
+line.highlightable.is-highlighted { stroke: #f07824 !important; stroke-width: 14 !important; }
+text.highlightable.is-highlighted, tspan.highlightable.is-highlighted { fill: #b94f16 !important; font-weight: 800; }
+g.highlightable.is-highlighted circle { stroke: #f07824 !important; stroke-width: 4 !important; }
+g.highlightable.is-highlighted text { fill: #b94f16 !important; font-weight: 800; }
+g.edge-highlight-target.is-highlighted line { stroke: #f07824; opacity: .95; stroke-width: 13; stroke-dasharray: 9 6; }
+</style>
+<rect width="1900" height="1299" fill="#f3efe4"/>
+<rect x="35" y="55" width="790" height="720" rx="24" fill="#83bad1"/>
+<rect x="850" y="28" width="400" height="764" rx="18" fill="#fffdf8" stroke="#d7d0c3" stroke-width="2"/>
+<line class="port-link" data-port-edge="52" data-port-vertex="40" x1="132.1" y1="415.0" x2="119.9" y2="379.2" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<line class="port-link" data-port-edge="52" data-port-vertex="26" x1="169.3" y1="350.5" x2="119.9" y2="379.2" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<rect x="94.9" y="367.2" width="50" height="24" rx="7" fill="#f7e4b0" stroke="#735a3d" stroke-width="2"/>
+<text x="119.9" y="383.2" class="small"  text-anchor="middle">3:1</text>
+<line class="port-link" data-port-edge="35" data-port-vertex="28" x1="169.3" y1="221.5" x2="183.1" y2="201.2" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<line class="port-link" data-port-edge="35" data-port-vertex="16" x1="243.8" y1="221.5" x2="183.1" y2="201.2" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<rect x="158.1" y="189.2" width="50" height="24" rx="7" fill="#f7e4b0" stroke="#735a3d" stroke-width="2"/>
+<text x="183.1" y="205.2" class="small"  text-anchor="middle">3:1</text>
+<line class="port-link" data-port-edge="4" data-port-vertex="4" x1="392.8" y1="92.5" x2="430.0" y2="61.5" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<line class="port-link" data-port-edge="4" data-port-vertex="5" x1="467.2" y1="92.5" x2="430.0" y2="61.5" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<rect x="405.0" y="49.5" width="50" height="24" rx="7" fill="#f7e4b0" stroke="#735a3d" stroke-width="2"/>
+<text x="430.0" y="65.5" class="small"  text-anchor="middle">W 2:1</text>
+<line class="port-link" data-port-edge="10" data-port-vertex="9" x1="579.0" y1="157.0" x2="616.1" y2="164.4" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<line class="port-link" data-port-edge="10" data-port-vertex="6" x1="616.2" y1="221.5" x2="616.1" y2="164.4" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<rect x="591.1" y="152.4" width="50" height="24" rx="7" fill="#f7e4b0" stroke="#735a3d" stroke-width="2"/>
+<text x="616.1" y="168.4" class="small"  text-anchor="middle">L 2:1</text>
+<line class="port-link" data-port-edge="11" data-port-vertex="10" x1="727.9" y1="286.0" x2="738.6" y2="308.1" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<line class="port-link" data-port-edge="11" data-port-vertex="11" x1="690.7" y1="350.5" x2="738.6" y2="308.1" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<rect x="713.6" y="296.1" width="50" height="24" rx="7" fill="#f7e4b0" stroke="#735a3d" stroke-width="2"/>
+<text x="738.6" y="312.1" class="small"  text-anchor="middle">B 2:1</text>
+<line class="port-link" data-port-edge="45" data-port-vertex="35" x1="727.9" y1="544.0" x2="736.1" y2="591.8" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<line class="port-link" data-port-edge="45" data-port-vertex="36" x1="690.7" y1="608.5" x2="736.1" y2="591.8" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<rect x="711.1" y="579.8" width="50" height="24" rx="7" fill="#f7e4b0" stroke="#735a3d" stroke-width="2"/>
+<text x="736.1" y="595.8" class="small"  text-anchor="middle">3:1</text>
+<line class="port-link" data-port-edge="60" data-port-vertex="45" x1="579.0" y1="673.0" x2="554.0" y2="701.4" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<line class="port-link" data-port-edge="60" data-port-vertex="46" x1="504.5" y1="673.0" x2="554.0" y2="701.4" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<rect x="529.0" y="689.4" width="50" height="24" rx="7" fill="#f7e4b0" stroke="#735a3d" stroke-width="2"/>
+<text x="554.0" y="705.4" class="small"  text-anchor="middle">O 2:1</text>
+<line class="port-link" data-port-edge="71" data-port-vertex="53" x1="392.8" y1="737.5" x2="368.3" y2="735.7" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<line class="port-link" data-port-edge="71" data-port-vertex="50" x1="355.5" y1="673.0" x2="368.3" y2="735.7" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<rect x="343.3" y="723.7" width="50" height="24" rx="7" fill="#f7e4b0" stroke="#735a3d" stroke-width="2"/>
+<text x="368.3" y="739.7" class="small"  text-anchor="middle">G 2:1</text>
+<line class="port-link" data-port-edge="64" data-port-vertex="48" x1="169.3" y1="608.5" x2="123.9" y2="591.8" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<line class="port-link" data-port-edge="64" data-port-vertex="49" x1="132.1" y1="544.0" x2="123.9" y2="591.8" stroke="#735a3d" stroke-width="7" stroke-linecap="round"/>
+<rect x="98.9" y="579.8" width="50" height="24" rx="7" fill="#f7e4b0" stroke="#735a3d" stroke-width="2"/>
+<text x="123.9" y="595.8" class="small"  text-anchor="middle">3:1</text>
+<polygon class="highlightable" data-highlight-id="hex-0" points="504.5,157.0 467.2,221.5 392.8,221.5 355.5,157.0 392.8,92.5 467.2,92.5" fill="#d9b951" stroke="#f0dfb8" stroke-width="5"/>
+<text x="430.0" y="123.0" class="small" data-highlight-id="hex-0" text-anchor="middle">H0 fields</text>
+<circle class="highlightable" data-highlight-id="hex-token-0" cx="430.0" cy="157.0" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="430.0" y="163.0" class="token" text-anchor="middle" style="fill:#b32626">8</text>
+<polygon class="highlightable" data-highlight-id="hex-1" points="616.2,221.5 579.0,286.0 504.5,286.0 467.2,221.5 504.5,157.0 579.0,157.0" fill="#4d8651" stroke="#f0dfb8" stroke-width="5"/>
+<text x="541.7" y="187.5" class="small" data-highlight-id="hex-1" text-anchor="middle">H1 forest</text>
+<circle class="highlightable" data-highlight-id="hex-token-1" cx="541.7" cy="221.5" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="541.7" y="227.5" class="token" text-anchor="middle" style="fill:#25313a">3</text>
+<polygon class="highlightable" data-highlight-id="hex-2" points="727.9,286.0 690.7,350.5 616.2,350.5 579.0,286.0 616.2,221.5 690.7,221.5" fill="#4d8651" stroke="#f0dfb8" stroke-width="5"/>
+<text x="653.4" y="252.0" class="small" data-highlight-id="hex-2" text-anchor="middle">H2 forest</text>
+<circle class="highlightable" data-highlight-id="hex-token-2" cx="653.4" cy="286.0" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="653.4" y="292.0" class="token" text-anchor="middle" style="fill:#25313a">10</text>
+<polygon class="highlightable" data-highlight-id="hex-3" points="392.8,221.5 355.5,286.0 281.0,286.0 243.8,221.5 281.0,157.0 355.5,157.0" fill="#8fbd63" stroke="#f0dfb8" stroke-width="5"/>
+<text x="318.3" y="187.5" class="small" data-highlight-id="hex-3" text-anchor="middle">H3 pasture</text>
+<circle class="highlightable" data-highlight-id="hex-token-3" cx="318.3" cy="221.5" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="318.3" y="227.5" class="token" text-anchor="middle" style="fill:#25313a">5</text>
+<polygon class="highlightable" data-highlight-id="hex-4" points="504.5,286.0 467.2,350.5 392.8,350.5 355.5,286.0 392.8,221.5 467.2,221.5" fill="#d9b951" stroke="#f0dfb8" stroke-width="5"/>
+<text x="430.0" y="252.0" class="small" data-highlight-id="hex-4" text-anchor="middle">H4 fields</text>
+<circle class="highlightable" data-highlight-id="hex-token-4" cx="430.0" cy="286.0" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="430.0" y="292.0" class="token" text-anchor="middle" style="fill:#25313a">12</text>
+<polygon class="highlightable" data-highlight-id="hex-5" points="616.2,350.5 579.0,415.0 504.5,415.0 467.2,350.5 504.5,286.0 579.0,286.0" fill="#b86546" stroke="#f0dfb8" stroke-width="5"/>
+<text x="541.7" y="316.5" class="small" data-highlight-id="hex-5" text-anchor="middle">H5 hills</text>
+<circle class="highlightable" data-highlight-id="hex-token-5" cx="541.7" cy="350.5" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="541.7" y="356.5" class="token" text-anchor="middle" style="fill:#25313a">5</text>
+<polygon class="highlightable" data-highlight-id="hex-6" points="727.9,415.0 690.7,479.5 616.2,479.5 579.0,415.0 616.2,350.5 690.7,350.5" fill="#8fbd63" stroke="#f0dfb8" stroke-width="5"/>
+<text x="653.4" y="381.0" class="small" data-highlight-id="hex-6" text-anchor="middle">H6 pasture</text>
+<circle class="highlightable" data-highlight-id="hex-token-6" cx="653.4" cy="415.0" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="653.4" y="421.0" class="token" text-anchor="middle" style="fill:#25313a">4</text>
+<polygon class="highlightable" data-highlight-id="hex-7" points="281.0,286.0 243.8,350.5 169.3,350.5 132.1,286.0 169.3,221.5 243.8,221.5" fill="#d9b951" stroke="#f0dfb8" stroke-width="5"/>
+<text x="206.6" y="252.0" class="small" data-highlight-id="hex-7" text-anchor="middle">H7 fields</text>
+<circle class="highlightable" data-highlight-id="hex-token-7" cx="206.6" cy="286.0" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="206.6" y="292.0" class="token" text-anchor="middle" style="fill:#25313a">4</text>
+<polygon class="highlightable" data-highlight-id="hex-8" points="392.8,350.5 355.5,415.0 281.0,415.0 243.8,350.5 281.0,286.0 355.5,286.0" fill="#828990" stroke="#f0dfb8" stroke-width="5"/>
+<text x="318.3" y="316.5" class="small" data-highlight-id="hex-8" text-anchor="middle">H8 mountains</text>
+<circle class="highlightable" data-highlight-id="hex-token-8" cx="318.3" cy="350.5" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="318.3" y="356.5" class="token" text-anchor="middle" style="fill:#25313a">11</text>
+<polygon class="highlightable" data-highlight-id="hex-9" points="504.5,415.0 467.2,479.5 392.8,479.5 355.5,415.0 392.8,350.5 467.2,350.5" fill="#b86546" stroke="#f0dfb8" stroke-width="5"/>
+<text x="430.0" y="381.0" class="small" data-highlight-id="hex-9" text-anchor="middle">H9 hills</text>
+<circle class="highlightable" data-highlight-id="hex-token-9" cx="430.0" cy="415.0" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="430.0" y="421.0" class="token" text-anchor="middle" style="fill:#25313a">9</text>
+<polygon class="highlightable" data-highlight-id="hex-10" points="616.2,479.5 579.0,544.0 504.5,544.0 467.2,479.5 504.5,415.0 579.0,415.0" fill="#828990" stroke="#f0dfb8" stroke-width="5"/>
+<text x="541.7" y="445.5" class="small" data-highlight-id="hex-10" text-anchor="middle">H10 mountains</text>
+<circle class="highlightable" data-highlight-id="hex-token-10" cx="541.7" cy="479.5" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="541.7" y="485.5" class="token" text-anchor="middle" style="fill:#25313a">10</text>
+<polygon class="highlightable" data-highlight-id="hex-11" points="727.9,544.0 690.7,608.5 616.2,608.5 579.0,544.0 616.2,479.5 690.7,479.5" fill="#4d8651" stroke="#f0dfb8" stroke-width="5"/>
+<text x="653.4" y="510.0" class="small" data-highlight-id="hex-11" text-anchor="middle">H11 forest</text>
+<circle class="highlightable" data-highlight-id="hex-token-11" cx="653.4" cy="544.0" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="653.4" y="550.0" class="token" text-anchor="middle" style="fill:#b32626">8</text>
+<polygon class="highlightable" data-highlight-id="hex-12" points="281.0,415.0 243.8,479.5 169.3,479.5 132.1,415.0 169.3,350.5 243.8,350.5" fill="#8fbd63" stroke="#f0dfb8" stroke-width="5"/>
+<text x="206.6" y="381.0" class="small" data-highlight-id="hex-12" text-anchor="middle">H12 pasture</text>
+<circle class="highlightable" data-highlight-id="hex-token-12" cx="206.6" cy="415.0" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="206.6" y="421.0" class="token" text-anchor="middle" style="fill:#b32626">6</text>
+<polygon class="highlightable" data-highlight-id="hex-13" points="392.8,479.5 355.5,544.0 281.0,544.0 243.8,479.5 281.0,415.0 355.5,415.0" fill="#d3bb88" stroke="#f0dfb8" stroke-width="5"/>
+<text x="318.3" y="445.5" class="small" data-highlight-id="hex-13" text-anchor="middle">H13 desert</text>
+<circle cx="318.3" cy="487.5" r="7" fill="#2f3437" stroke="#fff" stroke-width="2"/>
+<rect x="309.3" y="493.5" width="18" height="23" rx="7" fill="#2f3437" stroke="#fff" stroke-width="2"/>
+<text x="318.3" y="529.5" class="small"  text-anchor="middle">ROBBER</text>
+<circle class="highlightable" data-highlight-id="hex-token-13" cx="318.3" cy="479.5" r="22" fill="transparent" stroke="none"/>
+<polygon class="highlightable" data-highlight-id="hex-14" points="504.5,544.0 467.2,608.5 392.8,608.5 355.5,544.0 392.8,479.5 467.2,479.5" fill="#4d8651" stroke="#f0dfb8" stroke-width="5"/>
+<text x="430.0" y="510.0" class="small" data-highlight-id="hex-14" text-anchor="middle">H14 forest</text>
+<circle class="highlightable" data-highlight-id="hex-token-14" cx="430.0" cy="544.0" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="430.0" y="550.0" class="token" text-anchor="middle" style="fill:#b32626">6</text>
+<polygon class="highlightable" data-highlight-id="hex-15" points="616.2,608.5 579.0,673.0 504.5,673.0 467.2,608.5 504.5,544.0 579.0,544.0" fill="#b86546" stroke="#f0dfb8" stroke-width="5"/>
+<text x="541.7" y="574.5" class="small" data-highlight-id="hex-15" text-anchor="middle">H15 hills</text>
+<circle class="highlightable" data-highlight-id="hex-token-15" cx="541.7" cy="608.5" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="541.7" y="614.5" class="token" text-anchor="middle" style="fill:#25313a">11</text>
+<polygon class="highlightable" data-highlight-id="hex-16" points="281.0,544.0 243.8,608.5 169.3,608.5 132.1,544.0 169.3,479.5 243.8,479.5" fill="#d9b951" stroke="#f0dfb8" stroke-width="5"/>
+<text x="206.6" y="510.0" class="small" data-highlight-id="hex-16" text-anchor="middle">H16 fields</text>
+<circle class="highlightable" data-highlight-id="hex-token-16" cx="206.6" cy="544.0" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="206.6" y="550.0" class="token" text-anchor="middle" style="fill:#25313a">2</text>
+<polygon class="highlightable" data-highlight-id="hex-17" points="392.8,608.5 355.5,673.0 281.0,673.0 243.8,608.5 281.0,544.0 355.5,544.0" fill="#8fbd63" stroke="#f0dfb8" stroke-width="5"/>
+<text x="318.3" y="574.5" class="small" data-highlight-id="hex-17" text-anchor="middle">H17 pasture</text>
+<circle class="highlightable" data-highlight-id="hex-token-17" cx="318.3" cy="608.5" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="318.3" y="614.5" class="token" text-anchor="middle" style="fill:#25313a">9</text>
+<polygon class="highlightable" data-highlight-id="hex-18" points="504.5,673.0 467.2,737.5 392.8,737.5 355.5,673.0 392.8,608.5 467.2,608.5" fill="#828990" stroke="#f0dfb8" stroke-width="5"/>
+<text x="430.0" y="639.0" class="small" data-highlight-id="hex-18" text-anchor="middle">H18 mountains</text>
+<circle class="highlightable" data-highlight-id="hex-token-18" cx="430.0" cy="673.0" r="22" fill="#f7edd1" stroke="#6b5b42"/>
+<text x="430.0" y="679.0" class="token" text-anchor="middle" style="fill:#25313a">3</text>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-0"><line x1="504.5" y1="157.0" x2="467.2" y2="221.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-1"><line x1="467.2" y1="221.5" x2="392.8" y2="221.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-2"><line x1="392.8" y1="221.5" x2="355.5" y2="157.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-3"><line x1="355.5" y1="157.0" x2="392.8" y2="92.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-4"><line x1="392.8" y1="92.5" x2="467.2" y2="92.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-5"><line x1="467.2" y1="92.5" x2="504.5" y2="157.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-6"><line x1="616.2" y1="221.5" x2="579.0" y2="286.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-7"><line x1="579.0" y1="286.0" x2="504.5" y2="286.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-8"><line x1="504.5" y1="286.0" x2="467.2" y2="221.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-9"><line x1="504.5" y1="157.0" x2="579.0" y2="157.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-10"><line x1="579.0" y1="157.0" x2="616.2" y2="221.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-11"><line x1="727.9" y1="286.0" x2="690.7" y2="350.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-12"><line x1="690.7" y1="350.5" x2="616.2" y2="350.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-13"><line x1="616.2" y1="350.5" x2="579.0" y2="286.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-14"><line x1="616.2" y1="221.5" x2="690.7" y2="221.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-15"><line x1="690.7" y1="221.5" x2="727.9" y2="286.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-16"><line x1="392.8" y1="221.5" x2="355.5" y2="286.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-17"><line x1="355.5" y1="286.0" x2="281.0" y2="286.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-18"><line x1="281.0" y1="286.0" x2="243.8" y2="221.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-19"><line x1="243.8" y1="221.5" x2="281.0" y2="157.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-20"><line x1="281.0" y1="157.0" x2="355.5" y2="157.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-21"><line x1="504.5" y1="286.0" x2="467.2" y2="350.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-22"><line x1="467.2" y1="350.5" x2="392.8" y2="350.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-23"><line x1="392.8" y1="350.5" x2="355.5" y2="286.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-24"><line x1="616.2" y1="350.5" x2="579.0" y2="415.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-25"><line x1="579.0" y1="415.0" x2="504.5" y2="415.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-26"><line x1="504.5" y1="415.0" x2="467.2" y2="350.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-27"><line x1="727.9" y1="415.0" x2="690.7" y2="479.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-28"><line x1="690.7" y1="479.5" x2="616.2" y2="479.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-29"><line x1="616.2" y1="479.5" x2="579.0" y2="415.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-30"><line x1="690.7" y1="350.5" x2="727.9" y2="415.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-31"><line x1="281.0" y1="286.0" x2="243.8" y2="350.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-32"><line x1="243.8" y1="350.5" x2="169.3" y2="350.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-33"><line x1="169.3" y1="350.5" x2="132.1" y2="286.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-34"><line x1="132.1" y1="286.0" x2="169.3" y2="221.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-35"><line x1="169.3" y1="221.5" x2="243.8" y2="221.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-36"><line x1="392.8" y1="350.5" x2="355.5" y2="415.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-37"><line x1="355.5" y1="415.0" x2="281.0" y2="415.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-38"><line x1="281.0" y1="415.0" x2="243.8" y2="350.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-39"><line x1="504.5" y1="415.0" x2="467.2" y2="479.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-40"><line x1="467.2" y1="479.5" x2="392.8" y2="479.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-41"><line x1="392.8" y1="479.5" x2="355.5" y2="415.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-42"><line x1="616.2" y1="479.5" x2="579.0" y2="544.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-43"><line x1="579.0" y1="544.0" x2="504.5" y2="544.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-44"><line x1="504.5" y1="544.0" x2="467.2" y2="479.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-45"><line x1="727.9" y1="544.0" x2="690.7" y2="608.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-46"><line x1="690.7" y1="608.5" x2="616.2" y2="608.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-47"><line x1="616.2" y1="608.5" x2="579.0" y2="544.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-48"><line x1="690.7" y1="479.5" x2="727.9" y2="544.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-49"><line x1="281.0" y1="415.0" x2="243.8" y2="479.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-50"><line x1="243.8" y1="479.5" x2="169.3" y2="479.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-51"><line x1="169.3" y1="479.5" x2="132.1" y2="415.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-52"><line x1="132.1" y1="415.0" x2="169.3" y2="350.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-53"><line x1="392.8" y1="479.5" x2="355.5" y2="544.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-54"><line x1="355.5" y1="544.0" x2="281.0" y2="544.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-55"><line x1="281.0" y1="544.0" x2="243.8" y2="479.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-56"><line x1="504.5" y1="544.0" x2="467.2" y2="608.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-57"><line x1="467.2" y1="608.5" x2="392.8" y2="608.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-58"><line x1="392.8" y1="608.5" x2="355.5" y2="544.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-59"><line x1="616.2" y1="608.5" x2="579.0" y2="673.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-60"><line x1="579.0" y1="673.0" x2="504.5" y2="673.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-61"><line x1="504.5" y1="673.0" x2="467.2" y2="608.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-62"><line x1="281.0" y1="544.0" x2="243.8" y2="608.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-63"><line x1="243.8" y1="608.5" x2="169.3" y2="608.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-64"><line x1="169.3" y1="608.5" x2="132.1" y2="544.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-65"><line x1="132.1" y1="544.0" x2="169.3" y2="479.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-66"><line x1="392.8" y1="608.5" x2="355.5" y2="673.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-67"><line x1="355.5" y1="673.0" x2="281.0" y2="673.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-68"><line x1="281.0" y1="673.0" x2="243.8" y2="608.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-69"><line x1="504.5" y1="673.0" x2="467.2" y2="737.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-70"><line x1="467.2" y1="737.5" x2="392.8" y2="737.5" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable edge-highlight-target" data-highlight-id="edge-71"><line x1="392.8" y1="737.5" x2="355.5" y2="673.0" stroke="transparent" stroke-width="22" stroke-linecap="round" pointer-events="none"/></g>
+<g class="highlightable" data-highlight-id="vertex-0">
+<circle cx="504.5" cy="157.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="504.5" y="160.0" class="tiny"  text-anchor="middle">0</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-1">
+<circle cx="467.2" cy="221.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="467.2" y="224.5" class="tiny"  text-anchor="middle">1</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-2">
+<circle cx="392.8" cy="221.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="392.8" y="224.5" class="tiny"  text-anchor="middle">2</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-3">
+<circle cx="355.5" cy="157.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="355.5" y="160.0" class="tiny"  text-anchor="middle">3</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-4">
+<circle cx="392.8" cy="92.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="392.8" y="95.5" class="tiny"  text-anchor="middle">4</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-5">
+<circle cx="467.2" cy="92.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="467.2" y="95.5" class="tiny"  text-anchor="middle">5</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-6">
+<circle cx="616.2" cy="221.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="616.2" y="224.5" class="tiny"  text-anchor="middle">6</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-7">
+<circle cx="579.0" cy="286.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="579.0" y="289.0" class="tiny"  text-anchor="middle">7</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-8">
+<circle cx="504.5" cy="286.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="504.5" y="289.0" class="tiny"  text-anchor="middle">8</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-9">
+<circle cx="579.0" cy="157.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="579.0" y="160.0" class="tiny"  text-anchor="middle">9</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-10">
+<circle cx="727.9" cy="286.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="727.9" y="289.0" class="tiny"  text-anchor="middle">10</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-11">
+<circle cx="690.7" cy="350.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="690.7" y="353.5" class="tiny"  text-anchor="middle">11</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-12">
+<circle cx="616.2" cy="350.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="616.2" y="353.5" class="tiny"  text-anchor="middle">12</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-13">
+<circle cx="690.7" cy="221.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="690.7" y="224.5" class="tiny"  text-anchor="middle">13</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-14">
+<circle cx="355.5" cy="286.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="355.5" y="289.0" class="tiny"  text-anchor="middle">14</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-15">
+<circle cx="281.0" cy="286.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="281.0" y="289.0" class="tiny"  text-anchor="middle">15</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-16">
+<circle cx="243.8" cy="221.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="243.8" y="224.5" class="tiny"  text-anchor="middle">16</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-17">
+<circle cx="281.0" cy="157.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="281.0" y="160.0" class="tiny"  text-anchor="middle">17</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-18">
+<circle cx="467.2" cy="350.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="467.2" y="353.5" class="tiny"  text-anchor="middle">18</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-19">
+<circle cx="392.8" cy="350.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="392.8" y="353.5" class="tiny"  text-anchor="middle">19</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-20">
+<circle cx="579.0" cy="415.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="579.0" y="418.0" class="tiny"  text-anchor="middle">20</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-21">
+<circle cx="504.5" cy="415.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="504.5" y="418.0" class="tiny"  text-anchor="middle">21</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-22">
+<circle cx="727.9" cy="415.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="727.9" y="418.0" class="tiny"  text-anchor="middle">22</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-23">
+<circle cx="690.7" cy="479.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="690.7" y="482.5" class="tiny"  text-anchor="middle">23</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-24">
+<circle cx="616.2" cy="479.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="616.2" y="482.5" class="tiny"  text-anchor="middle">24</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-25">
+<circle cx="243.8" cy="350.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="243.8" y="353.5" class="tiny"  text-anchor="middle">25</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-26">
+<circle cx="169.3" cy="350.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="169.3" y="353.5" class="tiny"  text-anchor="middle">26</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-27">
+<circle cx="132.1" cy="286.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="132.1" y="289.0" class="tiny"  text-anchor="middle">27</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-28">
+<circle cx="169.3" cy="221.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="169.3" y="224.5" class="tiny"  text-anchor="middle">28</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-29">
+<circle cx="355.5" cy="415.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="355.5" y="418.0" class="tiny"  text-anchor="middle">29</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-30">
+<circle cx="281.0" cy="415.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="281.0" y="418.0" class="tiny"  text-anchor="middle">30</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-31">
+<circle cx="467.2" cy="479.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="467.2" y="482.5" class="tiny"  text-anchor="middle">31</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-32">
+<circle cx="392.8" cy="479.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="392.8" y="482.5" class="tiny"  text-anchor="middle">32</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-33">
+<circle cx="579.0" cy="544.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="579.0" y="547.0" class="tiny"  text-anchor="middle">33</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-34">
+<circle cx="504.5" cy="544.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="504.5" y="547.0" class="tiny"  text-anchor="middle">34</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-35">
+<circle cx="727.9" cy="544.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="727.9" y="547.0" class="tiny"  text-anchor="middle">35</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-36">
+<circle cx="690.7" cy="608.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="690.7" y="611.5" class="tiny"  text-anchor="middle">36</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-37">
+<circle cx="616.2" cy="608.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="616.2" y="611.5" class="tiny"  text-anchor="middle">37</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-38">
+<circle cx="243.8" cy="479.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="243.8" y="482.5" class="tiny"  text-anchor="middle">38</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-39">
+<circle cx="169.3" cy="479.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="169.3" y="482.5" class="tiny"  text-anchor="middle">39</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-40">
+<circle cx="132.1" cy="415.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="132.1" y="418.0" class="tiny"  text-anchor="middle">40</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-41">
+<circle cx="355.5" cy="544.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="355.5" y="547.0" class="tiny"  text-anchor="middle">41</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-42">
+<circle cx="281.0" cy="544.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="281.0" y="547.0" class="tiny"  text-anchor="middle">42</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-43">
+<circle cx="467.2" cy="608.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="467.2" y="611.5" class="tiny"  text-anchor="middle">43</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-44">
+<circle cx="392.8" cy="608.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="392.8" y="611.5" class="tiny"  text-anchor="middle">44</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-45">
+<circle cx="579.0" cy="673.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="579.0" y="676.0" class="tiny"  text-anchor="middle">45</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-46">
+<circle cx="504.5" cy="673.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="504.5" y="676.0" class="tiny"  text-anchor="middle">46</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-47">
+<circle cx="243.8" cy="608.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="243.8" y="611.5" class="tiny"  text-anchor="middle">47</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-48">
+<circle cx="169.3" cy="608.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="169.3" y="611.5" class="tiny"  text-anchor="middle">48</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-49">
+<circle cx="132.1" cy="544.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="132.1" y="547.0" class="tiny"  text-anchor="middle">49</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-50">
+<circle cx="355.5" cy="673.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="355.5" y="676.0" class="tiny"  text-anchor="middle">50</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-51">
+<circle cx="281.0" cy="673.0" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="281.0" y="676.0" class="tiny"  text-anchor="middle">51</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-52">
+<circle cx="467.2" cy="737.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="467.2" y="740.5" class="tiny"  text-anchor="middle">52</text>
+</g>
+<g class="highlightable" data-highlight-id="vertex-53">
+<circle cx="392.8" cy="737.5" r="7" fill="#f8f1dc" stroke="#695d4f"/>
+<text x="392.8" y="740.5" class="tiny"  text-anchor="middle">53</text>
+</g>
+<text x="875.0" y="65.0" class="title" data-highlight-id="turn" text-anchor="start">Turn 0</text>
+<text x="875.0" y="91.0" class="heading" data-highlight-id="turn" text-anchor="start">initial settlement</text>
+<text x="875.0" y="115.0" class="label" data-highlight-id="turn" text-anchor="start">Active: P1 · Decision: P1</text>
+<text x="875.0" y="139.0" class="small"  text-anchor="start">Discard [0, 0] · setup 0 · free roads 0 · plenty 0</text>
+<rect x="870" y="165" width="360" height="178" rx="13" fill="#f7f4ec" stroke="#d94a45" stroke-width="4"/>
+<circle cx="895" cy="193" r="13" fill="#d94a45"/>
+<text x="918.0" y="199.0" class="heading"  text-anchor="start">Player 1</text>
+<text x="1095.0" y="199.0" class="heading"  text-anchor="start">0 VP (0 public)</text>
+<g class="highlightable" data-highlight-id="resource-0-lumber">
+<circle cx="898" cy="232" r="13" fill="#397442"/>
+<text x="898.0" y="236.0" class="small white"  text-anchor="middle">0</text>
+<text x="898.0" y="256.0" class="small"  text-anchor="middle">L</text>
+</g>
+<g class="highlightable" data-highlight-id="resource-0-brick">
+<circle cx="963" cy="232" r="13" fill="#a94b36"/>
+<text x="963.0" y="236.0" class="small white"  text-anchor="middle">0</text>
+<text x="963.0" y="256.0" class="small"  text-anchor="middle">B</text>
+</g>
+<g class="highlightable" data-highlight-id="resource-0-wool">
+<circle cx="1028" cy="232" r="13" fill="#78a951"/>
+<text x="1028.0" y="236.0" class="small white"  text-anchor="middle">0</text>
+<text x="1028.0" y="256.0" class="small"  text-anchor="middle">W</text>
+</g>
+<g class="highlightable" data-highlight-id="resource-0-grain">
+<circle cx="1093" cy="232" r="13" fill="#c8992e"/>
+<text x="1093.0" y="236.0" class="small white"  text-anchor="middle">0</text>
+<text x="1093.0" y="256.0" class="small"  text-anchor="middle">G</text>
+</g>
+<g class="highlightable" data-highlight-id="resource-0-ore">
+<circle cx="1158" cy="232" r="13" fill="#707982"/>
+<text x="1158.0" y="236.0" class="small white"  text-anchor="middle">0</text>
+<text x="1158.0" y="256.0" class="small"  text-anchor="middle">O</text>
+</g>
+<text x="884.0" y="284.0" class="label"  text-anchor="start">Played knights: 0</text>
+<text x="884.0" y="308.0" class="small"  text-anchor="start">Development cards (omniscient):</text>
+<g class="highlightable" data-highlight-id="devcard-0-knight">
+<text x="884.0" y="327.0" class="small"  text-anchor="start">K 0(+0)</text>
+</g>
+<g class="highlightable" data-highlight-id="devcard-0-road-building">
+<text x="937.0" y="327.0" class="small"  text-anchor="start">RB 0(+0)</text>
+</g>
+<g class="highlightable" data-highlight-id="devcard-0-year-of-plenty">
+<text x="990.0" y="327.0" class="small"  text-anchor="start">YOP 0(+0)</text>
+</g>
+<g class="highlightable" data-highlight-id="devcard-0-monopoly">
+<text x="1046.3" y="327.0" class="small"  text-anchor="start">M 0(+0)</text>
+</g>
+<g class="highlightable" data-highlight-id="devcard-0-victory-point">
+<text x="1099.3" y="327.0" class="small"  text-anchor="start">VP 0(+0)</text>
+</g>
+<rect x="870" y="359" width="360" height="178" rx="13" fill="#f7f4ec" stroke="#3978c5" stroke-width="4"/>
+<circle cx="895" cy="387" r="13" fill="#3978c5"/>
+<text x="918.0" y="393.0" class="heading"  text-anchor="start">Player 2</text>
+<text x="1095.0" y="393.0" class="heading"  text-anchor="start">0 VP (0 public)</text>
+<g class="highlightable" data-highlight-id="resource-1-lumber">
+<circle cx="898" cy="426" r="13" fill="#397442"/>
+<text x="898.0" y="430.0" class="small white"  text-anchor="middle">0</text>
+<text x="898.0" y="450.0" class="small"  text-anchor="middle">L</text>
+</g>
+<g class="highlightable" data-highlight-id="resource-1-brick">
+<circle cx="963" cy="426" r="13" fill="#a94b36"/>
+<text x="963.0" y="430.0" class="small white"  text-anchor="middle">0</text>
+<text x="963.0" y="450.0" class="small"  text-anchor="middle">B</text>
+</g>
+<g class="highlightable" data-highlight-id="resource-1-wool">
+<circle cx="1028" cy="426" r="13" fill="#78a951"/>
+<text x="1028.0" y="430.0" class="small white"  text-anchor="middle">0</text>
+<text x="1028.0" y="450.0" class="small"  text-anchor="middle">W</text>
+</g>
+<g class="highlightable" data-highlight-id="resource-1-grain">
+<circle cx="1093" cy="426" r="13" fill="#c8992e"/>
+<text x="1093.0" y="430.0" class="small white"  text-anchor="middle">0</text>
+<text x="1093.0" y="450.0" class="small"  text-anchor="middle">G</text>
+</g>
+<g class="highlightable" data-highlight-id="resource-1-ore">
+<circle cx="1158" cy="426" r="13" fill="#707982"/>
+<text x="1158.0" y="430.0" class="small white"  text-anchor="middle">0</text>
+<text x="1158.0" y="450.0" class="small"  text-anchor="middle">O</text>
+</g>
+<text x="884.0" y="478.0" class="label"  text-anchor="start">Played knights: 0</text>
+<text x="884.0" y="502.0" class="small"  text-anchor="start">Development cards (omniscient):</text>
+<g class="highlightable" data-highlight-id="devcard-1-knight">
+<text x="884.0" y="521.0" class="small"  text-anchor="start">K 0(+0)</text>
+</g>
+<g class="highlightable" data-highlight-id="devcard-1-road-building">
+<text x="937.0" y="521.0" class="small"  text-anchor="start">RB 0(+0)</text>
+</g>
+<g class="highlightable" data-highlight-id="devcard-1-year-of-plenty">
+<text x="990.0" y="521.0" class="small"  text-anchor="start">YOP 0(+0)</text>
+</g>
+<g class="highlightable" data-highlight-id="devcard-1-monopoly">
+<text x="1046.3" y="521.0" class="small"  text-anchor="start">M 0(+0)</text>
+</g>
+<g class="highlightable" data-highlight-id="devcard-1-victory-point">
+<text x="1099.3" y="521.0" class="small"  text-anchor="start">VP 0(+0)</text>
+</g>
+<text x="875.0" y="565.0" class="heading"  text-anchor="start">Bank</text>
+<text x="875.0" y="588.0" class="small" data-highlight-id="bank" text-anchor="start">Lumber: 19   Brick: 19   Wool: 19   Grain: 19   Ore: 19</text>
+<text x="875.0" y="612.0" class="small" data-highlight-id="development-deck" text-anchor="start">Development deck: 25</text>
+<g class="highlightable" data-highlight-id="development-deck-card-knight">
+<text x="1005.0" y="612.0" class="small"  text-anchor="start">K 14</text>
+</g>
+<g class="highlightable" data-highlight-id="development-deck-card-road-building">
+<text x="1053.0" y="612.0" class="small"  text-anchor="start">R 2</text>
+</g>
+<g class="highlightable" data-highlight-id="development-deck-card-year-of-plenty">
+<text x="1101.0" y="612.0" class="small"  text-anchor="start">Y 2</text>
+</g>
+<g class="highlightable" data-highlight-id="development-deck-card-monopoly">
+<text x="1149.0" y="612.0" class="small"  text-anchor="start">M 2</text>
+</g>
+<g class="highlightable" data-highlight-id="development-deck-card-victory-point">
+<text x="1197.0" y="612.0" class="small"  text-anchor="start">V 5</text>
+</g>
+<text x="875.0" y="648.0" class="heading"  text-anchor="start">Awards</text>
+<text x="875.0" y="672.0" class="label"  text-anchor="start">Longest Road: none  · lengths [0, 0]</text>
+<text x="875.0" y="695.0" class="label"  text-anchor="start">Largest Army: none</text>
+<text x="875.0" y="731.0" class="heading" data-highlight-id="dice" text-anchor="start">Balanced dice</text>
+<text x="875.0" y="755.0" class="label" data-highlight-id="dice" text-anchor="start">Deck: 36 · recent: [] · sevens: [0, 0] · streak: none</text>
+<rect x="1275" y="28" width="610" height="1243" rx="18" fill="#fffdf8" stroke="#d7d0c3" stroke-width="2"/>
+<text x="1297.0" y="62.0" class="title"  text-anchor="start">P1 belief tree · P1 decision</text>
+<text x="1297.0" y="86.0" class="label"  text-anchor="start">128 iterations · 1 workers · depth 2</text>
+<text x="1297.0" y="106.0" class="label"  text-anchor="start">54 unique nodes / 54 actions · player decisions · estimated win chance</text>
+<text x="1297.0" y="127.0" class="small"  text-anchor="start">#    win       visits   action</text>
+<g class="mcts-action recommended" data-action-index="44" data-highlight-targets="vertex-44"><rect x="1289" y="129" width="582" height="20" rx="4" fill="#dff3df" stroke="#4c9a57"/>
+<text x="1295.0" y="144.0" class="mcts-row"  text-anchor="start">★ 44   58.20%        3   place initial settlement at vertex 44</text>
+</g>
+<g class="mcts-action" data-action-index="25" data-highlight-targets="vertex-25"><rect x="1289" y="150" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="165.0" class="mcts-row"  text-anchor="start">  25   57.11%        3   place initial settlement at vertex 25</text>
+</g>
+<g class="mcts-action" data-action-index="19" data-highlight-targets="vertex-19"><rect x="1289" y="171" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="186.0" class="mcts-row"  text-anchor="start">  19   51.12%        3   place initial settlement at vertex 19</text>
+</g>
+<g class="mcts-action" data-action-index="4" data-highlight-targets="vertex-4"><rect x="1289" y="192" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="207.0" class="mcts-row"  text-anchor="start">   4   50.87%        3   place initial settlement at vertex 4</text>
+</g>
+<g class="mcts-action" data-action-index="43" data-highlight-targets="vertex-43"><rect x="1289" y="213" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="228.0" class="mcts-row"  text-anchor="start">  43   50.79%        3   place initial settlement at vertex 43</text>
+</g>
+<g class="mcts-action" data-action-index="21" data-highlight-targets="vertex-21"><rect x="1289" y="234" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="249.0" class="mcts-row"  text-anchor="start">  21   50.67%        3   place initial settlement at vertex 21</text>
+</g>
+<g class="mcts-action" data-action-index="42" data-highlight-targets="vertex-42"><rect x="1289" y="255" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="270.0" class="mcts-row"  text-anchor="start">  42   50.67%        3   place initial settlement at vertex 42</text>
+</g>
+<g class="mcts-action" data-action-index="1" data-highlight-targets="vertex-1"><rect x="1289" y="276" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="291.0" class="mcts-row"  text-anchor="start">   1   50.67%        3   place initial settlement at vertex 1</text>
+</g>
+<g class="mcts-action" data-action-index="23" data-highlight-targets="vertex-23"><rect x="1289" y="297" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="312.0" class="mcts-row"  text-anchor="start">  23   50.62%        3   place initial settlement at vertex 23</text>
+</g>
+<g class="mcts-action" data-action-index="27" data-highlight-targets="vertex-27"><rect x="1289" y="318" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="333.0" class="mcts-row"  text-anchor="start">  27   50.46%        3   place initial settlement at vertex 27</text>
+</g>
+<g class="mcts-action" data-action-index="20" data-highlight-targets="vertex-20"><rect x="1289" y="339" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="354.0" class="mcts-row"  text-anchor="start">  20   50.42%        3   place initial settlement at vertex 20</text>
+</g>
+<g class="mcts-action" data-action-index="34" data-highlight-targets="vertex-34"><rect x="1289" y="360" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="375.0" class="mcts-row"  text-anchor="start">  34   50.31%        2   place initial settlement at vertex 34</text>
+</g>
+<g class="mcts-action" data-action-index="36" data-highlight-targets="vertex-36"><rect x="1289" y="381" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="396.0" class="mcts-row"  text-anchor="start">  36   50.31%        2   place initial settlement at vertex 36</text>
+</g>
+<g class="mcts-action" data-action-index="15" data-highlight-targets="vertex-15"><rect x="1289" y="402" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="417.0" class="mcts-row"  text-anchor="start">  15   50.31%        2   place initial settlement at vertex 15</text>
+</g>
+<g class="mcts-action" data-action-index="29" data-highlight-targets="vertex-29"><rect x="1289" y="423" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="438.0" class="mcts-row"  text-anchor="start">  29   50.29%        3   place initial settlement at vertex 29</text>
+</g>
+<g class="mcts-action" data-action-index="12" data-highlight-targets="vertex-12"><rect x="1289" y="444" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="459.0" class="mcts-row"  text-anchor="start">  12   50.25%        3   place initial settlement at vertex 12</text>
+</g>
+<g class="mcts-action" data-action-index="0" data-highlight-targets="vertex-0"><rect x="1289" y="465" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="480.0" class="mcts-row"  text-anchor="start">   0   50.25%        2   place initial settlement at vertex 0</text>
+</g>
+<g class="mcts-action" data-action-index="48" data-highlight-targets="vertex-48"><rect x="1289" y="486" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="501.0" class="mcts-row"  text-anchor="start">  48   50.25%        2   place initial settlement at vertex 48</text>
+</g>
+<g class="mcts-action" data-action-index="51" data-highlight-targets="vertex-51"><rect x="1289" y="507" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="522.0" class="mcts-row"  text-anchor="start">  51   50.21%        3   place initial settlement at vertex 51</text>
+</g>
+<g class="mcts-action" data-action-index="8" data-highlight-targets="vertex-8"><rect x="1289" y="528" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="543.0" class="mcts-row"  text-anchor="start">   8   50.12%        3   place initial settlement at vertex 8</text>
+</g>
+<g class="mcts-action" data-action-index="11" data-highlight-targets="vertex-11"><rect x="1289" y="549" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="564.0" class="mcts-row"  text-anchor="start">  11   50.12%        2   place initial settlement at vertex 11</text>
+</g>
+<g class="mcts-action" data-action-index="22" data-highlight-targets="vertex-22"><rect x="1289" y="570" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="585.0" class="mcts-row"  text-anchor="start">  22   50.08%        3   place initial settlement at vertex 22</text>
+</g>
+<g class="mcts-action" data-action-index="9" data-highlight-targets="vertex-9"><rect x="1289" y="591" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="606.0" class="mcts-row"  text-anchor="start">   9   50.08%        3   place initial settlement at vertex 9</text>
+</g>
+<g class="mcts-action" data-action-index="16" data-highlight-targets="vertex-16"><rect x="1289" y="612" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="627.0" class="mcts-row"  text-anchor="start">  16   50.06%        2   place initial settlement at vertex 16</text>
+</g>
+<g class="mcts-action" data-action-index="5" data-highlight-targets="vertex-5"><rect x="1289" y="633" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="648.0" class="mcts-row"  text-anchor="start">   5   50.00%        2   place initial settlement at vertex 5</text>
+</g>
+<g class="mcts-action" data-action-index="6" data-highlight-targets="vertex-6"><rect x="1289" y="654" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="669.0" class="mcts-row"  text-anchor="start">   6   50.00%        2   place initial settlement at vertex 6</text>
+</g>
+<g class="mcts-action" data-action-index="24" data-highlight-targets="vertex-24"><rect x="1289" y="675" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="690.0" class="mcts-row"  text-anchor="start">  24   50.00%        2   place initial settlement at vertex 24</text>
+</g>
+<g class="mcts-action" data-action-index="33" data-highlight-targets="vertex-33"><rect x="1289" y="696" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="711.0" class="mcts-row"  text-anchor="start">  33   50.00%        2   place initial settlement at vertex 33</text>
+</g>
+<g class="mcts-action" data-action-index="35" data-highlight-targets="vertex-35"><rect x="1289" y="717" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="732.0" class="mcts-row"  text-anchor="start">  35   50.00%        2   place initial settlement at vertex 35</text>
+</g>
+<g class="mcts-action" data-action-index="37" data-highlight-targets="vertex-37"><rect x="1289" y="738" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="753.0" class="mcts-row"  text-anchor="start">  37   50.00%        2   place initial settlement at vertex 37</text>
+</g>
+<g class="mcts-action" data-action-index="46" data-highlight-targets="vertex-46"><rect x="1289" y="759" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="774.0" class="mcts-row"  text-anchor="start">  46   50.00%        2   place initial settlement at vertex 46</text>
+</g>
+<g class="mcts-action" data-action-index="31" data-highlight-targets="vertex-31"><rect x="1289" y="780" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="795.0" class="mcts-row"  text-anchor="start">  31   50.00%        3   place initial settlement at vertex 31</text>
+</g>
+<g class="mcts-action" data-action-index="17" data-highlight-targets="vertex-17"><rect x="1289" y="801" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="816.0" class="mcts-row"  text-anchor="start">  17   49.94%        2   place initial settlement at vertex 17</text>
+</g>
+<g class="mcts-action" data-action-index="45" data-highlight-targets="vertex-45"><rect x="1289" y="822" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="837.0" class="mcts-row"  text-anchor="start">  45   49.94%        2   place initial settlement at vertex 45</text>
+</g>
+<g class="mcts-action" data-action-index="39" data-highlight-targets="vertex-39"><rect x="1289" y="843" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="858.0" class="mcts-row"  text-anchor="start">  39   49.88%        2   place initial settlement at vertex 39</text>
+</g>
+<g class="mcts-action" data-action-index="50" data-highlight-targets="vertex-50"><rect x="1289" y="864" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="879.0" class="mcts-row"  text-anchor="start">  50   49.83%        3   place initial settlement at vertex 50</text>
+</g>
+<g class="mcts-action" data-action-index="52" data-highlight-targets="vertex-52"><rect x="1289" y="885" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="900.0" class="mcts-row"  text-anchor="start">  52   49.75%        2   place initial settlement at vertex 52</text>
+</g>
+<g class="mcts-action" data-action-index="53" data-highlight-targets="vertex-53"><rect x="1289" y="906" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="921.0" class="mcts-row"  text-anchor="start">  53   49.75%        2   place initial settlement at vertex 53</text>
+</g>
+<g class="mcts-action" data-action-index="40" data-highlight-targets="vertex-40"><rect x="1289" y="927" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="942.0" class="mcts-row"  text-anchor="start">  40   49.69%        2   place initial settlement at vertex 40</text>
+</g>
+<g class="mcts-action" data-action-index="14" data-highlight-targets="vertex-14"><rect x="1289" y="948" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="963.0" class="mcts-row"  text-anchor="start">  14   49.69%        2   place initial settlement at vertex 14</text>
+</g>
+<g class="mcts-action" data-action-index="13" data-highlight-targets="vertex-13"><rect x="1289" y="969" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="984.0" class="mcts-row"  text-anchor="start">  13   49.63%        2   place initial settlement at vertex 13</text>
+</g>
+<g class="mcts-action" data-action-index="30" data-highlight-targets="vertex-30"><rect x="1289" y="990" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="1005.0" class="mcts-row"  text-anchor="start">  30   49.63%        2   place initial settlement at vertex 30</text>
+</g>
+<g class="mcts-action" data-action-index="28" data-highlight-targets="vertex-28"><rect x="1289" y="1011" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="1026.0" class="mcts-row"  text-anchor="start">  28   49.38%        2   place initial settlement at vertex 28</text>
+</g>
+<g class="mcts-action" data-action-index="49" data-highlight-targets="vertex-49"><rect x="1289" y="1032" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="1047.0" class="mcts-row"  text-anchor="start">  49   49.38%        2   place initial settlement at vertex 49</text>
+</g>
+<g class="mcts-action" data-action-index="41" data-highlight-targets="vertex-41"><rect x="1289" y="1053" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="1068.0" class="mcts-row"  text-anchor="start">  41   49.31%        2   place initial settlement at vertex 41</text>
+</g>
+<g class="mcts-action" data-action-index="18" data-highlight-targets="vertex-18"><rect x="1289" y="1074" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="1089.0" class="mcts-row"  text-anchor="start">  18   49.31%        2   place initial settlement at vertex 18</text>
+</g>
+<g class="mcts-action" data-action-index="38" data-highlight-targets="vertex-38"><rect x="1289" y="1095" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="1110.0" class="mcts-row"  text-anchor="start">  38   49.31%        2   place initial settlement at vertex 38</text>
+</g>
+<g class="mcts-action" data-action-index="32" data-highlight-targets="vertex-32"><rect x="1289" y="1116" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="1131.0" class="mcts-row"  text-anchor="start">  32   49.19%        2   place initial settlement at vertex 32</text>
+</g>
+<g class="mcts-action" data-action-index="47" data-highlight-targets="vertex-47"><rect x="1289" y="1137" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="1152.0" class="mcts-row"  text-anchor="start">  47   49.13%        2   place initial settlement at vertex 47</text>
+</g>
+<g class="mcts-action" data-action-index="7" data-highlight-targets="vertex-7"><rect x="1289" y="1158" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="1173.0" class="mcts-row"  text-anchor="start">   7   48.50%        2   place initial settlement at vertex 7</text>
+</g>
+<g class="mcts-action" data-action-index="2" data-highlight-targets="vertex-2"><rect x="1289" y="1179" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="1194.0" class="mcts-row"  text-anchor="start">   2   48.44%        2   place initial settlement at vertex 2</text>
+</g>
+<g class="mcts-action" data-action-index="26" data-highlight-targets="vertex-26"><rect x="1289" y="1200" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="1215.0" class="mcts-row"  text-anchor="start">  26   48.38%        2   place initial settlement at vertex 26</text>
+</g>
+<g class="mcts-action" data-action-index="10" data-highlight-targets="vertex-10"><rect x="1289" y="1221" width="582" height="20" rx="4" fill="#f7f4ec" stroke="none"/>
+<text x="1295.0" y="1236.0" class="mcts-row"  text-anchor="start">  10   43.09%        3   place initial settlement at vertex 10</text>
+</g>
+<g class="mcts-action" data-action-index="3" data-highlight-targets="vertex-3"><rect x="1289" y="1242" width="582" height="20" rx="4" fill="#fffdf8" stroke="none"/>
+<text x="1295.0" y="1257.0" class="mcts-row"  text-anchor="start">   3   37.27%        2   place initial settlement at vertex 3</text>
+</g>
+<text x="42.0" y="37.0" class="title"  text-anchor="start">Catan state debug view</text>
+<text x="795.0" y="804.0" class="small"  text-anchor="end">IDs are engine Hex/Vertex/Edge IDs · full hands are intentionally visible</text>
+</svg>

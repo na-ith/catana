@@ -1,0 +1,6 @@
+/target
+/build
+.vscode
+__pycache__/
+/debug_state.svg
+/debug_state.json
