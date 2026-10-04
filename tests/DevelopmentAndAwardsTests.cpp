@@ -181,7 +181,7 @@ TEST(victory_point_cards_score_secretly_and_are_not_playable_actions) {
     CHECK_EQ(publicVictoryPoints(state, PlayerId::One), std::uint8_t{1});
     CHECK_EQ(victoryPoints(state, PlayerId::One), std::uint8_t{3});
     Game game(state);
-    for (const auto& action : game.legalActions())
+    for (const auto& action : game.legalTransformations())
         CHECK(!std::holds_alternative<DrawDevelopmentCard>(action));
 }
 

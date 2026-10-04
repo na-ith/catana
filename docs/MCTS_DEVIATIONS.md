@@ -3,10 +3,94 @@
 This file records intentional differences between the engine and a minimal,
 single-threaded UCT implementation. Add an entry whenever search changes the
 legal branch set, statistics, rollout policy, tree topology, or execution
-model. The simulator's `Game::legalActions()` remains the rules authority;
+model. The simulator's `Game::transform()` remains the rules authority;
 search-only pruning must not make an action illegal in the simulator.
 
 ## Implemented
+
+### Consecutive bank-trade batches and build/trade canonical ordering
+
+At main-phase nodes, search replaces individual maritime trades with
+`MaritimeTradeBatch`: an ordered sequence executed atomically. Breadth-first
+enumeration keeps one shortest legal sequence for every reachable resource
+hand, including each possible stopping point. The bank follows uniquely from
+the original hand and resource conservation, so another trade order reaching
+the same hand has the same complete state. Each intermediate exchange must
+be affordable and the receiving resource must be available in the bank;
+bundles are not validated using only net resource deltas. Exchange rates stay
+fixed because there is no building or information event inside a batch.
+
+A batch cannot immediately follow another batch in the optimized tree:
+their combined sequence is already represented at the preceding trading
+position. The normal simulator still permits individual trades, and accepts
+arbitrary valid ordered batches without requiring canonical spelling. An
+observed alternate batch order can reuse its canonical explored result.
+
+Search retains path metadata for a segment containing only trades and paid
+builds. A post-build batch is omitted **only** if replaying the earlier trades
+plus that batch before all intervening builds is legal and produces exactly
+the same complete final state. This removes both `build -> trade` and
+`trade -> build -> trade` permutations when interchangeable. It preserves
+new port discounts, bank replenishment by building costs, and any other
+case where replay is invalid or differs. After a necessary post-build trade,
+a new ordering segment begins; earlier exceptional builds are not crossed.
+
+Every purchase, development-card play/resolution, dice/robber/discard action,
+or turn boundary resets this metadata. There is no blanket requirement to
+play development cards before building: Knight can resolve a random steal,
+Monopoly and Year of Plenty change resources, Road Building changes the
+board, and purchases reveal a card before subsequent decisions. New cards
+remain subject to the normal same-turn play restriction.
+
+Exhaustive batching can increase immediate branching even while reducing
+depth and duplicate paths. `MctsConfig::maxTradeBatchStates` defaults to 512
+(including the starting hand). If enumeration would exceed this budget,
+search discards the incomplete list and retains normal individual trades at
+that node, including consecutive trades. Setting the budget to zero disables
+tree batching. This is a completeness-preserving fallback, not truncation of
+large bundles. Build/trade replay checks still apply to those single trades.
+For eight lumber with no port, 20 nonempty ordered trade prefixes become 14
+distinct trade-result edges. This example demonstrates deduplication, not a
+measured general simulation-throughput gain.
+
+Rollouts avoid exhaustive enumeration: after randomly selecting a first
+legal trade, they append another random legal exchange with probability 0.5
+until stopping or no exchange is possible, then apply the whole batch as one
+rollout step. They use the same build-order replay checks and do not choose
+another batch without a boundary/build. This changes the rollout policy and
+the meaning of bounded rollout depth. Search depth also counts one batch as
+one move, irrespective of its number of constituent exchanges.
+
+These constraints live in search metadata, not `GameState` or the player's
+beliefs. Identical-state sibling folding additionally compares this metadata
+so children with different permitted continuations are not incorrectly merged.
+Manually entering a legal move omitted by the optimized tree starts a fresh
+root, as with other search-only pruning. The CLI and viewer apply batch
+recommendations atomically; one rewind restores the entire batch.
+
+### Simultaneous discard decisions and opponent-policy sampling
+
+A seven creates a single pre-discard position. Each player's vectors are
+obtained with `discardChoices(player)`; `ResolveDiscards` validates both
+against that position and changes both hands and the bank in one transformation.
+The Cartesian product is not enumerated by `legalTransformations()`. The CLI
+and viewer stage input outside the state and commit only the complete pair.
+
+When both players owe discards, each perspective's tree branches on that
+perspective's own vector. Beneath it, an internal policy node samples the
+opponent's legal vectors uniformly. Its distribution uses only the unchanged
+pre-discard hand, never the selected own vector or a half-discarded hand.
+The policy node has no simulator transformation; its children apply the
+complete `ResolveDiscards`. Rollouts likewise select both vectors independently
+from the same original position. Actual observed pairs re-root through these
+nodes, retaining the matching explored child when available.
+
+This uniform opponent-discard model is a deliberate approximation, not an
+inherent chance rule and not an optimal simultaneous-game solver. Reported
+values depend on that policy. Root discard choices are shown as decisions,
+without chance percentages. Search depth currently includes the internal
+policy level, although only its resolution changes the game state. If only
+one player owes a discard, it remains an ordinary decision node.
 
 ### Adversarial opponent nodes
 
@@ -144,18 +228,38 @@ lets estimates improve live.
 
 ### Player-specific development-card belief trees
 
-The live analyser maintains one fixed-perspective search forest for each
-player. Each forest samples complete determinizations from that player's exact
-Bayesian development-card belief. The joint hypotheses retain the correlation
-between the opponent's hidden cards and the remaining development deck.
+The live analyser uses `InformationMctsSession`, whose game-facing boundary is
+one `InformationState`. Without a CLI perspective flag, there is a forest for
+each player; `--perspective p1|p2` creates only the selected observer's forest.
+Resources are known for both players. The joint development-card possibilities
+retain correlation between hidden hands, card age, and the remaining deck.
+Perspective mode stores no single authoritative opponent development hand.
 
 When the observer buys a card, their belief conditions every hypothesis on the
 card they privately observed. When the opponent buys a card, the observer's
 belief branches over every feasible card and merges identical resulting
 hypotheses. Public card plays eliminate incompatible worlds. Normal public
 actions advance both forests, and compatible worker trees retain their
-subtrees. Workers inconsistent with a new private observation are rebuilt from
-the posterior belief.
+subtrees. Each worker samples a world from the current posterior for every
+iteration and keeps a persistent complete-world tree for each world sampled.
+Incompatible trees are discarded after an observation. Hidden opponent draws
+use the observation-only `DrawUnknownDevelopmentCard` transformation; the CLI
+automatically applies it after an opponent purchase. Own draws condition on a
+concrete observed card. Compatible sampled draw children may be retained;
+worlds not retained are explored lazily from the updated posterior.
+
+Within a worker, root action values are weighted by current posterior mass
+(and observation likelihood for chance outcomes), with a neutral 0.5 prior
+for unexplored worlds. This prevents old visit allocation from masquerading as
+a new posterior after private information is revealed. Separate workers still
+combine action estimates using visit-weighted means. Observed card-play
+feasibility conditions the posterior, but no opponent-policy likelihood is
+inferred from their choice not to play a card.
+
+A hidden VP outcome can make only some worlds terminal. Ongoing worlds remain
+available until a public continuation excludes terminal worlds or
+`ObserveVictory` conditions on an observed victory. The CLI/viewer never
+reports a win just because one hypothetical hidden draw would have won.
 
 This is a root-determinization implementation rather than full ISMCTS. A
 worker's opponent decisions use the private hand in that determinization,

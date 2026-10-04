@@ -1,5 +1,4 @@
 #include "catan/Debug.h"
-#include "catan/Belief.h"
 #include "catan/BoardImport.h"
 #include "catan/Game.h"
 #include "catan/Mcts.h"
@@ -36,13 +35,15 @@ void printResources(const catan::Resources& resources) {
     std::cout << ']';
 }
 
-void printState(const catan::GameState& state) {
+void printState(const catan::GameState& state, std::optional<catan::PlayerId> observer = {}) {
     std::cout << "\nTurn " << state.turnNumber << " | " << catan::toString(state.turn.phase)
               << " | acting: " << catan::toString(state.turn.decisionPlayer) << '\n';
     for (std::size_t p = 0; p < catan::PlayerCount; ++p) {
         auto player = static_cast<catan::PlayerId>(p);
-        std::cout << "  " << catan::toString(player) << ": " << +catan::victoryPoints(state, player)
-                  << " VP (" << +catan::publicVictoryPoints(state, player) << " public), resources ";
+        std::cout << "  " << catan::toString(player) << ": ";
+        if (observer && player != *observer) std::cout << "unknown total VP";
+        else std::cout << +catan::victoryPoints(state, player) << " VP";
+        std::cout << " (" << +catan::publicVictoryPoints(state, player) << " public), resources ";
         printResources(state.players[p].resources);
         std::cout << ", knights=" << +state.players[p].playedKnights << '\n';
     }
@@ -145,22 +146,26 @@ bool waitForInputOrViewer(catan::debug::LiveVisualizer& visualizer, bool viewerE
 }
 
 struct HistoryEntry {
-    catan::GameState state;
+    std::optional<catan::GameState> state;
     std::mt19937 random;
-    std::array<catan::DevelopmentBelief, catan::PlayerCount> beliefs;
+    std::array<std::optional<catan::InformationState>, catan::PlayerCount> information;
 };
 
 class LiveMctsAnalysis {
 public:
-    LiveMctsAnalysis(catan::debug::LiveVisualizer& visualizer, std::size_t workerCount)
-        : visualizer_(visualizer), workerCount_(std::max<std::size_t>(1, workerCount)) {}
+    LiveMctsAnalysis(catan::debug::LiveVisualizer& visualizer, std::size_t workerCount,
+                     std::optional<catan::PlayerId> perspective = {})
+        : visualizer_(visualizer), workerCount_(std::max<std::size_t>(1, workerCount)),
+          perspective_(perspective) {
+        if (perspective_) trees_[catan::index(catan::opponent(*perspective_))].enabled = false;
+    }
     ~LiveMctsAnalysis() { stop(); }
 
     LiveMctsAnalysis(const LiveMctsAnalysis&) = delete;
     LiveMctsAnalysis& operator=(const LiveMctsAnalysis&) = delete;
 
     void startNew(const catan::GameState& state,
-                  const std::array<catan::DevelopmentBelief, catan::PlayerCount>& beliefs,
+                  const std::array<std::optional<catan::InformationState>, catan::PlayerCount>& information,
                   std::uint32_t seed) {
         stop();
         publicState_ = state;
@@ -169,14 +174,18 @@ public:
             tree.latest.reset();
             tree.workerResults.assign(workerCount_, std::nullopt);
             tree.sessions.clear();
+            if (!information[p]) {
+                tree.enabled = false;
+                visualizer_.setTreeRunning(static_cast<catan::PlayerId>(p), false);
+                continue;
+            }
             tree.sessions.reserve(workerCount_);
-            tree.random.seed(seed ^ static_cast<std::uint32_t>((p + 1) * 0x85ebca6bU));
             for (std::size_t worker = 0; worker < workerCount_; ++worker)
                 tree.sessions.push_back(makeSession(
-                    static_cast<catan::PlayerId>(p), beliefs[p], state, seed, worker));
+                    *information[p], seed, worker));
             visualizer_.setTreeRunning(static_cast<catan::PlayerId>(p), tree.enabled);
         }
-        baseSeed_ = seed;
+        publishCurrent();
         resume();
     }
 
@@ -186,37 +195,22 @@ public:
     }
 
     bool advance(const catan::Action& action, const catan::GameState& state,
-                 const std::array<catan::DevelopmentBelief, catan::PlayerCount>& beliefs) {
+                 const std::array<std::optional<catan::InformationState>, catan::PlayerCount>& information) {
         stop();
         bool reused = false;
         publicState_ = state;
         for (std::size_t p = 0; p < catan::PlayerCount; ++p) {
             auto& tree = trees_[p];
+            if (!information[p]) continue;
             std::vector<catan::MctsResult> results;
             results.reserve(workerCount_);
             for (std::size_t worker = 0; worker < tree.sessions.size(); ++worker) {
                 auto& session = tree.sessions[worker];
-                bool compatible = true;
                 catan::Action observedAction = action;
                 if (std::holds_alternative<catan::DrawDevelopmentCard>(action) &&
-                    session->state().turn.decisionPlayer != static_cast<catan::PlayerId>(p)) {
-                    const auto outcomes = catan::Game(session->state()).chanceOutcomes();
-                    if (outcomes.empty()) compatible = false;
-                    else observedAction = outcomes[sampleChanceOutcome(outcomes, tree.random)].action;
-                }
-                if (compatible) {
-                    try {
-                        reused |= session->advance(observedAction);
-                    } catch (const std::invalid_argument&) {
-                        compatible = false;
-                    }
-                }
-                if (compatible)
-                    compatible = beliefs[p].contains(session->state()) &&
-                                 publicStateMatches(session->state(), state);
-                if (!compatible)
-                    session = makeSession(static_cast<catan::PlayerId>(p), beliefs[p], state,
-                                          baseSeed_, worker);
+                    session->state().decisionPlayer() != static_cast<catan::PlayerId>(p))
+                    observedAction = catan::DrawUnknownDevelopmentCard{};
+                reused |= session->synchronize(observedAction, *information[p]);
                 results.push_back(session->result());
             }
             tree.workerResults.clear();
@@ -234,11 +228,20 @@ public:
 
     std::optional<catan::MctsResult> latest() const {
         std::lock_guard lock(mutex_);
-        return trees_[catan::index(publicState_.turn.decisionPlayer)].latest;
+        return trees_[catan::index(inputPlayer_.value_or(publicState_.turn.decisionPlayer))].latest;
+    }
+
+    void setInputPlayer(std::optional<catan::PlayerId> player) {
+        {
+            std::lock_guard lock(mutex_);
+            inputPlayer_ = player;
+        }
+        publishCurrent();
     }
 
     void setEnabled(catan::PlayerId player, bool enabled) {
         const auto p = catan::index(player);
+        if (perspective_ && player != *perspective_) return;
         stopTree(p);
         {
             std::lock_guard lock(mutex_);
@@ -254,44 +257,58 @@ private:
         bool enabled{true};
         std::optional<catan::MctsResult> latest;
         std::vector<std::optional<catan::MctsResult>> workerResults;
-        std::vector<std::unique_ptr<catan::MctsSession>> sessions;
+        std::vector<std::unique_ptr<catan::InformationMctsSession>> sessions;
         std::vector<std::jthread> workers;
-        std::mt19937 random;
         std::chrono::steady_clock::time_point lastPublished{};
     };
 
-    static bool publicStateMatches(catan::GameState candidate, const catan::GameState& actual) {
-        for (std::size_t p = 0; p < catan::PlayerCount; ++p)
-            candidate.players[p].developmentCards = actual.players[p].developmentCards;
-        candidate.developmentDeck = actual.developmentDeck;
-        return candidate == actual;
-    }
-
-    std::unique_ptr<catan::MctsSession> makeSession(
-        catan::PlayerId perspective, const catan::DevelopmentBelief& belief,
-        const catan::GameState& state, std::uint32_t seed, std::size_t worker) const {
+    std::unique_ptr<catan::InformationMctsSession> makeSession(
+        const catan::InformationState& information, std::uint32_t seed, std::size_t worker) const {
         catan::MctsConfig config;
         config.iterations = std::numeric_limits<std::size_t>::max();
         config.progressInterval = 100;
         config.seed = seed + static_cast<std::uint32_t>(worker * 0x9e3779b9U) +
-                      static_cast<std::uint32_t>((catan::index(perspective) + 1) * 0x85ebca6bU);
-        const double quantile = (static_cast<double>(worker) + 0.5) /
-                                static_cast<double>(workerCount_);
-        return std::make_unique<catan::MctsSession>(
-            belief.determinize(state, quantile), perspective, config);
+                      static_cast<std::uint32_t>((catan::index(information.observer()) + 1) * 0x85ebca6bU);
+        return std::make_unique<catan::InformationMctsSession>(information, config);
     }
 
     static std::optional<catan::MctsResult> mergeCompatible(
         const std::vector<catan::MctsResult>& results) {
         if (results.empty()) return std::nullopt;
-        try {
-            return catan::mergeMctsResults(results);
-        } catch (const std::invalid_argument&) {
-            // When the decision belongs to the opponent, determinizations can
-            // expose different legal development-card plays. There is no one
-            // public root action list to display for that observer's tree.
-            return std::nullopt;
+        catan::MctsResult merged = results.front();
+        merged.actions.clear();
+        merged.iterations = 0;
+        merged.workerCount = results.size();
+        merged.maximumDepth = 0;
+        merged.bestAction.reset();
+        for (const auto& result : results) {
+            if (result.perspective != merged.perspective || result.rootPlayer != merged.rootPlayer ||
+                result.chanceNode != merged.chanceNode) return std::nullopt;
+            merged.iterations += result.iterations;
+            merged.maximumDepth = std::max(merged.maximumDepth, result.maximumDepth);
+            for (const auto& value : result.actions) {
+                auto found = std::find_if(merged.actions.begin(), merged.actions.end(),
+                    [&](const auto& item) { return item.action == value.action; });
+                if (found == merged.actions.end()) merged.actions.push_back(value);
+                else {
+                    const auto visits = found->visits + value.visits;
+                    if (visits) found->estimatedWinProbability =
+                        (found->estimatedWinProbability * found->visits + value.estimatedWinProbability * value.visits) / visits;
+                    found->visits = visits;
+                }
+            }
         }
+        if (!merged.chanceNode) {
+            const catan::ActionEvaluation* best = nullptr;
+            for (const auto& value : merged.actions) {
+                if (!value.visits) continue;
+                if (!best || (merged.rootPlayer == merged.perspective
+                    ? value.estimatedWinProbability > best->estimatedWinProbability
+                    : value.estimatedWinProbability < best->estimatedWinProbability)) best = &value;
+            }
+            if (best) merged.bestAction = best->action;
+        }
+        return merged;
     }
 
     void stopTree(std::size_t player) {
@@ -331,7 +348,7 @@ private:
                 combined = mergeCompatible(available);
                 tree.latest = combined;
                 tree.lastPublished = now;
-                if (combined && player == catan::index(publicState_.turn.decisionPlayer)) {
+                if (combined && player == catan::index(inputPlayer_.value_or(publicState_.turn.decisionPlayer))) {
                     state = publicState_;
                     generation = ++publishGeneration_;
                 } else {
@@ -357,7 +374,7 @@ private:
         {
             std::lock_guard lock(mutex_);
             state = publicState_;
-            analysis = trees_[catan::index(state.turn.decisionPlayer)].latest;
+            analysis = trees_[catan::index(inputPlayer_.value_or(state.turn.decisionPlayer))].latest;
             ++publishGeneration_;
         }
         std::string ignored;
@@ -368,10 +385,11 @@ private:
     catan::debug::LiveVisualizer& visualizer_;
     const std::size_t workerCount_;
     mutable std::mutex mutex_;
+    std::optional<catan::PlayerId> inputPlayer_;
     std::mutex publishMutex_;
     std::array<PlayerTree, catan::PlayerCount> trees_;
+    const std::optional<catan::PlayerId> perspective_;
     catan::GameState publicState_;
-    std::uint32_t baseSeed_{};
     std::size_t publishGeneration_{};
 };
 
@@ -383,11 +401,21 @@ int main(int argc, char** argv) {
     bool uninitialized = false;
     std::optional<std::filesystem::path> boardFile;
     bool enableVisualizer = false;
+    std::optional<catan::PlayerId> perspective;
     std::size_t mctsThreads = std::clamp<unsigned>(std::thread::hardware_concurrency(), 1U, 8U);
     for (int argument = 1; argument < argc; ++argument) {
         const std::string value = argv[argument];
         if (value == "--visualizer") {
             enableVisualizer = true;
+        } else if (value == "--perspective") {
+            if (++argument == argc || perspective) {
+                std::cerr << "--perspective requires p1 or p2\n";
+                return 2;
+            }
+            const std::string player = argv[argument];
+            if (player == "p1" || player == "1") perspective = catan::PlayerId::One;
+            else if (player == "p2" || player == "2") perspective = catan::PlayerId::Two;
+            else { std::cerr << "--perspective requires p1 or p2\n"; return 2; }
         } else if (value == "--uninitialized") {
             uninitialized = true;
         } else if (value == "--board") {
@@ -419,7 +447,7 @@ int main(int argc, char** argv) {
             seedWasSet = true;
         } else if (value == "--help" || value == "-h") {
             std::cout << "usage: catan_cli [SEED | --seed SEED | --uninitialized | --board FILE] "
-                         "[--visualizer] [--mcts-threads N]\n"
+                         "[--visualizer] [--mcts-threads N] [--perspective p1|p2]\n"
                          "Uninitialized commands: status, init FILE, init-json JSON, q.\n";
             return 0;
         } else if (value.starts_with('-') || seedWasSet) {
@@ -483,25 +511,51 @@ int main(int argc, char** argv) {
         boardFile = inlineJson ? "inline JSON" : line.substr(first);
         std::cout << "Board initialized from " << *boardFile << ". Starting initial placement.\n";
     }
-    catan::Game game = std::move(*initializedGame);
+    std::array<std::optional<catan::InformationState>, catan::PlayerCount> information;
+    for (std::size_t p = 0; p < catan::PlayerCount; ++p)
+        if (!perspective || catan::index(*perspective) == p)
+            information[p].emplace(initializedGame->state(), static_cast<catan::PlayerId>(p));
+    std::optional<catan::Game> game;
+    if (!perspective) game = std::move(*initializedGame);
+    initializedGame.reset();
+    const auto currentState = [&]() -> const catan::GameState& {
+        return perspective ? information[catan::index(*perspective)]->state() : game->state();
+    };
     catan::debug::LiveVisualizer visualizer;
     if (enableVisualizer) {
         std::string error;
-        if (!visualizer.start(game.state(), &error)) {
+        if (perspective) visualizer.setInformationState(*information[catan::index(*perspective)]);
+        if (!visualizer.start(currentState(), &error)) {
             std::cerr << "Could not start live visualizer: " << error << '\n';
             return 2;
         }
     }
     std::mt19937 random(seed ^ 0x9e3779b9U);
-    std::array<catan::DevelopmentBelief, catan::PlayerCount> beliefs{
-        catan::DevelopmentBelief(catan::PlayerId::One, game.state()),
-        catan::DevelopmentBelief(catan::PlayerId::Two, game.state()),
-    };
     std::vector<HistoryEntry> history;
+    // Input staging is deliberately not part of GameState or InformationState.
+    std::array<std::optional<catan::Resources>, catan::PlayerCount> pendingDiscardChoices;
+    auto inputPlayer = [&]() {
+        if (currentState().turn.phase == catan::Phase::Discarding) {
+            if (perspective && currentState().turn.pendingDiscards[catan::index(*perspective)] &&
+                !pendingDiscardChoices[catan::index(*perspective)]) return *perspective;
+            for (std::size_t p = 0; p < catan::PlayerCount; ++p)
+                if (currentState().turn.pendingDiscards[p] && !pendingDiscardChoices[p])
+                    return static_cast<catan::PlayerId>(p);
+        }
+        return currentState().turn.decisionPlayer;
+    };
     std::optional<catan::MctsResult> currentAnalysis;
-    LiveMctsAnalysis liveAnalysis(visualizer, mctsThreads);
+    LiveMctsAnalysis liveAnalysis(visualizer, mctsThreads, perspective);
+    auto refreshDiscardInput = [&]() {
+        if (!enableVisualizer) return;
+        std::optional<catan::PlayerId> actor;
+        if (currentState().turn.phase == catan::Phase::Discarding) actor = inputPlayer();
+        visualizer.setDiscardInput(actor, {pendingDiscardChoices[0].has_value(), pendingDiscardChoices[1].has_value()});
+        visualizer.setRewindAvailable(!history.empty() || pendingDiscardChoices[0] || pendingDiscardChoices[1]);
+        liveAnalysis.setInputPlayer(actor);
+    };
     if (enableVisualizer)
-        liveAnalysis.startNew(game.state(), beliefs, seed ^ 0x517cc1b7U);
+        liveAnalysis.startNew(currentState(), information, seed ^ 0x517cc1b7U);
     std::cout << "Colonist ranked 1v1 stepper (";
     if (boardFile) std::cout << "imported board " << *boardFile;
     else std::cout << "board seed " << seed;
@@ -510,19 +564,52 @@ int main(int argc, char** argv) {
                  "'mcts [iterations]' to analyse actions, 'best [iterations]' to play the best action,\n"
                  "'rewind' to undo one action, 'image [file.svg]' to render the state,\n"
                  "'json [file.json]' to export it, or 'q' to quit.\n";
-    if (enableVisualizer)
+    if (perspective) {
+        std::cout << "Perspective: " << catan::toString(*perspective)
+                  << ". Opponent development draws remain unknown.\n"
+                     "On opponent turns, enter the action they took. Use 'winner p1|p2' to report a victory.\n";
+    }
+    if (enableVisualizer && !perspective)
         std::cout << "Both player-specific MCTS belief trees are running continuously with "
                   << mctsThreads << " workers per enabled tree.\n";
+    else if (enableVisualizer)
+        std::cout << "Only " << catan::toString(*perspective) << "'s tree is running with "
+                  << mctsThreads << " workers.\n";
 
     while (true) {
-        printState(game.state());
-        auto actions = game.legalActions();
+        refreshDiscardInput();
+        printState(currentState(), perspective);
+        if (currentState().turn.phase == catan::Phase::Discarding)
+            std::cout << "Choose discard for " << catan::toString(inputPlayer())
+                      << ". Hands stay unchanged until all required choices are recorded.\n";
+        if (perspective) {
+            const auto& view = *information[catan::index(*perspective)];
+            std::cout << "  Opponent development cards: " << view.opponentCardCount()
+                      << " unknown; " << view.worldCount() << " possible worlds\n";
+            if (inputPlayer() != *perspective)
+                std::cout << "Enter the opponent's observed action.\n";
+        }
+        auto actions = perspective ? information[catan::index(*perspective)]->legalTransformations()
+                                   : game->legalTransformations();
+        if (currentState().turn.phase == catan::Phase::Discarding)
+            actions = perspective ? information[catan::index(*perspective)]->discardChoices(inputPlayer())
+                                  : game->discardChoices(inputPlayer());
+        auto addEngineBatches = [&](const catan::MctsResult& analysis) {
+            for (const auto& evaluation : analysis.actions) {
+                const auto* batch = std::get_if<catan::MaritimeTradeBatch>(&evaluation.action);
+                if (batch && catan::Game(currentState()).canTradeBatch(*batch) &&
+                    std::find(actions.begin(), actions.end(), evaluation.action) == actions.end())
+                    actions.push_back(evaluation.action);
+            }
+        };
+        if (currentAnalysis) addEngineBatches(*currentAnalysis);
         actions.erase(std::remove_if(actions.begin(), actions.end(), [](const auto& action) {
             return std::holds_alternative<catan::Resign>(action);
         }), actions.end());
-        const auto chance = game.chanceOutcomes();
+        const auto chance = perspective ? information[catan::index(*perspective)]->chanceOutcomes()
+                                       : game->chanceOutcomes();
         for (std::size_t i = 0; i < actions.size(); ++i) {
-            std::cout << std::setw(4) << i << ": " << describeAction(actions[i], game.state());
+            std::cout << std::setw(4) << i << ": " << describeAction(actions[i], currentState());
             for (const auto& outcome : chance)
                 if (catan::toString(outcome.action) == catan::toString(actions[i]))
                     std::cout << "  [p=" << std::fixed << std::setprecision(4) << outcome.probability << ']';
@@ -537,8 +624,8 @@ int main(int argc, char** argv) {
         if (!waitForInputOrViewer(visualizer, enableVisualizer, line, viewerCommand)) break;
         if (!viewerCommand && (line == "q" || line == "quit")) break;
         if (!viewerCommand && line == "status") {
-            std::cout << "State: initialized | " << catan::toString(game.state().turn.phase)
-                      << " | acting: " << catan::toString(game.decisionPlayer()) << '\n';
+            std::cout << "State: initialized | " << catan::toString(currentState().turn.phase)
+                      << " | acting: " << catan::toString(currentState().turn.decisionPlayer) << '\n';
             continue;
         }
         if (!viewerCommand && (line.starts_with("init ") || line.starts_with("init-json "))) {
@@ -547,6 +634,12 @@ int main(int argc, char** argv) {
         }
 
         auto rewindOneAction = [&]() {
+            if (pendingDiscardChoices[0] || pendingDiscardChoices[1]) {
+                pendingDiscardChoices = {};
+                refreshDiscardInput();
+                std::cout << "Cancelled pending discard selections; game state unchanged.\n";
+                return;
+            }
             if (history.empty()) {
                 std::cout << "Nothing to rewind.\n";
                 return;
@@ -554,17 +647,18 @@ int main(int argc, char** argv) {
             liveAnalysis.stop();
             auto previous = std::move(history.back());
             history.pop_back();
-            game = catan::Game(std::move(previous.state));
+            if (previous.state) game.emplace(std::move(*previous.state));
             random = previous.random;
-            beliefs = std::move(previous.beliefs);
+            information = std::move(previous.information);
             currentAnalysis.reset();
             if (enableVisualizer) {
                 visualizer.setRewindAvailable(!history.empty());
                 std::string error;
-                if (!visualizer.update(game.state(), &error))
+                if (perspective) visualizer.setInformationState(*information[catan::index(*perspective)]);
+                if (!visualizer.update(currentState(), &error))
                     std::cout << "Visualizer rewind update failed: " << error << '\n';
                 liveAnalysis.startNew(
-                    game.state(), beliefs,
+                    currentState(), information,
                     seed ^ 0x517cc1b7U ^ static_cast<std::uint32_t>(history.size()));
             }
             std::cout << "Rewound one action.\n";
@@ -580,12 +674,26 @@ int main(int argc, char** argv) {
                 continue;
             }
             if (viewerCommand->type == catan::debug::ViewerCommandType::ToggleTree) {
+                if (perspective && viewerCommand->player != *perspective) {
+                    std::cout << "The opponent tree is unavailable in perspective mode.\n";
+                    continue;
+                }
                 liveAnalysis.setEnabled(viewerCommand->player, viewerCommand->enabled);
                 std::cout << catan::toString(viewerCommand->player) << " belief-tree calculation "
                           << (viewerCommand->enabled ? "enabled" : "paused") << ".\n";
                 continue;
             }
-            if (viewerCommand->type == catan::debug::ViewerCommandType::RandomChance) {
+            if (viewerCommand->type == catan::debug::ViewerCommandType::SelectTransformation) {
+                if (viewerCommand->actionIndex >= actions.size()) {
+                    std::cout << "Viewer transformation is no longer available.\n";
+                    continue;
+                }
+                line = std::to_string(viewerCommand->actionIndex);
+                std::cout << "Viewer recorded: " << describeAction(actions[viewerCommand->actionIndex], currentState()) << '\n';
+            } else if (viewerCommand->type == catan::debug::ViewerCommandType::ObserveVictory) {
+                if (!perspective) { std::cout << "Victory observations require perspective mode.\n"; continue; }
+                line = viewerCommand->player == catan::PlayerId::One ? "winner p1" : "winner p2";
+            } else if (viewerCommand->type == catan::debug::ViewerCommandType::RandomChance) {
                 if (chance.empty()) {
                     std::cout << "Viewer random outcome is no longer available.\n";
                     continue;
@@ -598,6 +706,7 @@ int main(int argc, char** argv) {
                     std::cout << "Viewer action is no longer available.\n";
                     continue;
                 }
+                addEngineBatches(*analysis);
                 const auto selected = std::find(
                     actions.begin(), actions.end(), analysis->actions[viewerCommand->actionIndex].action);
                 if (selected == actions.end()) {
@@ -606,7 +715,7 @@ int main(int argc, char** argv) {
                 }
                 line = std::to_string(static_cast<std::size_t>(selected - actions.begin()));
                 std::cout << "Viewer selected " << line << ": "
-                          << describeAction(*selected, game.state()) << '\n';
+                          << describeAction(*selected, currentState()) << '\n';
             }
         } else if (line == "rewind" || line == "undo") {
             rewindOneAction();
@@ -625,8 +734,10 @@ int main(int argc, char** argv) {
             auto displayedAnalysis = liveAnalysis.latest();
             if (!displayedAnalysis) displayedAnalysis = currentAnalysis;
             const bool rendered = displayedAnalysis
-                ? catan::debug::renderStateImage(game.state(), *displayedAnalysis, output, &error)
-                : catan::debug::renderStateImage(game.state(), output, &error);
+                ? (perspective ? catan::debug::renderStateImage(*information[catan::index(*perspective)], *displayedAnalysis, output, &error)
+                               : catan::debug::renderStateImage(currentState(), *displayedAnalysis, output, &error))
+                : (perspective ? catan::debug::renderStateImage(*information[catan::index(*perspective)], output, &error)
+                               : catan::debug::renderStateImage(currentState(), output, &error));
             if (rendered)
                 std::cout << "Rendered " << std::filesystem::absolute(output) << '\n';
             else
@@ -639,8 +750,10 @@ int main(int argc, char** argv) {
             auto displayedAnalysis = liveAnalysis.latest();
             if (!displayedAnalysis) displayedAnalysis = currentAnalysis;
             const bool exported = displayedAnalysis
-                ? catan::debug::writeStateJson(game.state(), *displayedAnalysis, output, &error)
-                : catan::debug::writeStateJson(game.state(), output, &error);
+                ? (perspective ? catan::debug::writeStateJson(*information[catan::index(*perspective)], *displayedAnalysis, output, &error)
+                               : catan::debug::writeStateJson(currentState(), *displayedAnalysis, output, &error))
+                : (perspective ? catan::debug::writeStateJson(*information[catan::index(*perspective)], output, &error)
+                               : catan::debug::writeStateJson(currentState(), output, &error));
             if (exported)
                 std::cout << "Exported " << std::filesystem::absolute(output) << '\n';
             else
@@ -649,6 +762,10 @@ int main(int argc, char** argv) {
         }
         std::optional<std::size_t> engineChoice;
         if (line == "mcts" || line.starts_with("mcts ") || line == "best" || line.starts_with("best ")) {
+            if (perspective && inputPlayer() != *perspective) {
+                std::cout << "Input the opponent's observed action; only your tree is available.\n";
+                continue;
+            }
             const bool chooseBest = line == "best" || line.starts_with("best ");
             const std::string command = chooseBest ? "best" : "mcts";
             std::size_t iterations = 2'000;
@@ -661,7 +778,7 @@ int main(int argc, char** argv) {
             }
             catan::MctsConfig config;
             config.iterations = iterations;
-            config.seed = seed ^ (game.state().turnNumber * 0x9e3779b9U);
+            config.seed = seed ^ (currentState().turnNumber * 0x9e3779b9U);
             std::optional<catan::MctsResult> analysisValue;
             if (enableVisualizer) {
                 if (chooseBest) liveAnalysis.stop();
@@ -671,12 +788,16 @@ int main(int argc, char** argv) {
                     continue;
                 }
             }
-            if (!analysisValue) analysisValue = catan::MctsEngine(config).search(game.state());
+            if (!analysisValue) {
+                const auto observer = perspective.value_or(inputPlayer());
+                analysisValue = catan::MctsEngine(config).search(*information[catan::index(observer)]);
+            }
             const auto& analysis = *analysisValue;
             currentAnalysis = analysis;
+            addEngineBatches(analysis);
             if (enableVisualizer && chooseBest) {
                 std::string error;
-                if (!visualizer.update(game.state(), analysis, &error))
+                if (!visualizer.update(currentState(), analysis, &error))
                     std::cout << "Visualizer analysis update failed: " << error << '\n';
             }
             std::cout << "MCTS from " << catan::toString(analysis.perspective)
@@ -691,13 +812,13 @@ int main(int argc, char** argv) {
                           << evaluation.visits;
                 if (evaluation.chanceProbability)
                     std::cout << "  chance=" << *evaluation.chanceProbability * 100.0 << '%';
-                std::cout << "  " << describeAction(evaluation.action, game.state()) << '\n';
+                std::cout << "  " << describeAction(evaluation.action, currentState()) << '\n';
             }
             if (analysis.bestAction) {
                 const auto selected = std::find(actions.begin(), actions.end(), *analysis.bestAction);
                 engineChoice = static_cast<std::size_t>(std::distance(actions.begin(), selected));
                 std::cout << "Best: " << *engineChoice << " ("
-                          << describeAction(*analysis.bestAction, game.state()) << ")\n";
+                          << describeAction(*analysis.bestAction, currentState()) << ")\n";
                 if (!chooseBest) continue;
             } else {
                 if (analysis.chanceNode)
@@ -709,14 +830,15 @@ int main(int argc, char** argv) {
                 continue;
             }
         }
-        if (game.state().turn.phase == catan::Phase::Finished) {
+        const bool observeVictory = perspective && (line == "winner p1" || line == "winner p2");
+        if (currentState().turn.phase == catan::Phase::Finished && !observeVictory) {
             std::cout << "The game is finished; use 'image', 'json', or 'q'.\n";
             continue;
         }
 
-        const HistoryEntry previous{game.state(), random, beliefs};
+        const HistoryEntry previous{game ? std::optional(game->state()) : std::nullopt, random, information};
         std::size_t choice = engineChoice.value_or(actions.size());
-        if (!engineChoice) {
+        if (!engineChoice && !observeVictory) {
             bool requestRandom = (line == "random" || line == "auto") && !chance.empty();
             bool parsedNumber = false;
             if (!requestRandom) {
@@ -729,7 +851,7 @@ int main(int argc, char** argv) {
                 const auto selected = std::find(actions.begin(), actions.end(), chance[outcomeIndex].action);
                 if (selected != actions.end()) choice = static_cast<std::size_t>(selected - actions.begin());
                 std::cout << "Randomly selected " << choice << ": "
-                          << describeAction(chance[outcomeIndex].action, game.state())
+                          << describeAction(chance[outcomeIndex].action, currentState())
                           << "  [p=" << std::fixed << std::setprecision(4)
                           << chance[outcomeIndex].probability << "]\n";
             } else if (!parsedNumber) {
@@ -737,28 +859,72 @@ int main(int argc, char** argv) {
                 continue;
             }
         }
-        if (choice >= actions.size()) {
+        if (choice >= actions.size() && !observeVictory) {
             std::cout << "Invalid selection.\n";
             continue;
         }
-        const auto selectedAction = actions[choice];
+        catan::Action selectedAction = observeVictory
+            ? catan::Action(catan::ObserveVictory{line == "winner p1" ? catan::PlayerId::One : catan::PlayerId::Two})
+            : actions[choice];
+        if (const auto* discard = std::get_if<catan::DiscardResources>(&selectedAction)) {
+            pendingDiscardChoices[catan::index(inputPlayer())] = discard->cards;
+            bool ready = true;
+            for (std::size_t p = 0; p < catan::PlayerCount; ++p)
+                ready &= !currentState().turn.pendingDiscards[p] || pendingDiscardChoices[p].has_value();
+            if (!ready) {
+                currentAnalysis.reset();
+                std::cout << "Discard selection recorded; waiting for the other player. Game state unchanged.\n";
+                continue;
+            }
+            catan::ResolveDiscards joint{};
+            for (std::size_t p = 0; p < catan::PlayerCount; ++p)
+                if (pendingDiscardChoices[p]) joint.discarded[p] = *pendingDiscardChoices[p];
+            selectedAction = joint;
+        }
         liveAnalysis.stop();
         currentAnalysis.reset();
-        auto result = game.step(selectedAction);
+        auto result = perspective ? information[catan::index(*perspective)]->transform(selectedAction)
+                                  : game->transform(selectedAction);
         if (!result.accepted) std::cout << "Rejected: " << result.message << '\n';
         if (result.accepted) {
-            for (auto& belief : beliefs)
-                belief.observe(previous.state, selectedAction, game.state());
+            pendingDiscardChoices = {};
+            if (enableVisualizer) visualizer.setDiscardInput(std::nullopt);
+            if (!perspective) {
+                for (auto& view : information) {
+                    catan::Action observation = selectedAction;
+                    if (std::holds_alternative<catan::DrawDevelopmentCard>(observation) &&
+                        view->decisionPlayer() != view->observer()) observation = catan::DrawUnknownDevelopmentCard{};
+                    const auto update = view->transform(observation);
+                    if (!update.accepted) throw std::logic_error("Information transformation rejected: " + update.message);
+                    if (game->state().winner) {
+                        const auto victory = view->transform(catan::ObserveVictory{*game->state().winner});
+                        if (!victory.accepted) throw std::logic_error(victory.message);
+                    }
+                }
+            }
             history.push_back(previous);
         }
         if (enableVisualizer) {
             if (result.accepted) {
                 visualizer.setRewindAvailable(true);
-                liveAnalysis.advance(selectedAction, game.state(), beliefs);
+                if (perspective) visualizer.setInformationState(*information[catan::index(*perspective)]);
+                liveAnalysis.advance(selectedAction, currentState(), information);
             }
             else liveAnalysis.resume();
         }
         for (const auto& event : result.events) std::cout << "  -> " << event << '\n';
+        if (result.accepted && perspective && currentState().turn.phase == catan::Phase::DevelopmentDraw &&
+            currentState().turn.decisionPlayer != *perspective) {
+            liveAnalysis.stop();
+            const catan::Action unknown = catan::DrawUnknownDevelopmentCard{};
+            const auto draw = information[catan::index(*perspective)]->transform(unknown);
+            if (!draw.accepted) throw std::logic_error(draw.message);
+            for (const auto& event : draw.events) std::cout << "  -> " << event << '\n';
+            if (enableVisualizer) {
+                visualizer.setInformationState(*information[catan::index(*perspective)]);
+                liveAnalysis.advance(unknown, currentState(), information);
+            }
+        }
     }
-    if (game.state().winner) std::cout << catan::toString(*game.state().winner) << " won.\n";
+    if (currentState().winner) std::cout << catan::toString(*currentState().winner) << " won.\n";
 }

@@ -24,7 +24,10 @@ endif()
 
 add_library(catan_mcts
     src/Belief.cpp
+    src/InformationState.cpp
+    src/InformationMcts.cpp
     src/Mcts.cpp
+    src/TradePolicy.cpp
 )
 target_include_directories(catan_mcts PUBLIC include)
 target_link_libraries(catan_mcts PUBLIC catan)
@@ -59,8 +62,10 @@ add_executable(catan_tests
     tests/DevelopmentAndAwardsTests.cpp
     tests/BalancedDiceTests.cpp
     tests/BeliefTests.cpp
+    tests/InformationStateTests.cpp
     tests/IntegrationTests.cpp
     tests/MctsTests.cpp
+    tests/TradePolicyTests.cpp
 )
 target_link_libraries(catan_tests PRIVATE catan_mcts)
 target_compile_options(catan_tests PRIVATE -Wall -Wextra -Wpedantic)
@@ -77,6 +82,18 @@ target_link_libraries(catan_snapshot PRIVATE catan_debug)
 add_test(NAME debug_snapshot
     COMMAND catan_snapshot "${CMAKE_CURRENT_BINARY_DIR}/debug_state_test.json")
 if(Python3_Interpreter_FOUND)
+    add_test(NAME information_cli
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/VerifyInformationCli.py"
+                "$<TARGET_FILE:catan_cli>" "${CMAKE_CURRENT_SOURCE_DIR}/tools/render_state.py")
+    set_tests_properties(information_cli PROPERTIES TIMEOUT 90)
+    add_test(NAME simultaneous_discard_cli
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/VerifySimultaneousDiscards.py"
+                "$<TARGET_FILE:catan_cli>")
+    set_tests_properties(simultaneous_discard_cli PROPERTIES TIMEOUT 90)
+    add_test(NAME trade_batches_cli
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/VerifyTradeBatchesCli.py"
+                "$<TARGET_FILE:catan_cli>")
+    set_tests_properties(trade_batches_cli PROPERTIES TIMEOUT 90)
     add_test(NAME debug_renderer
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/render_state.py"
                 --input "${CMAKE_CURRENT_BINARY_DIR}/debug_state_test.json"

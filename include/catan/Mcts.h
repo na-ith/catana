@@ -1,6 +1,7 @@
 #pragma once
 
 #include "catan/Game.h"
+#include "catan/InformationState.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -18,6 +19,9 @@ struct MctsConfig {
     double explorationConstant{1.4142135623730951};
     std::uint32_t seed{1};
     std::size_t progressInterval{100};
+    // Exhaustive distinct trade results per node, including the initial state.
+    // If exceeded, retain ordinary single trades rather than omit any bundles.
+    std::size_t maxTradeBatchStates{512};
 };
 
 struct ActionEvaluation {
@@ -49,6 +53,7 @@ using MctsProgressCallback = std::function<void(const MctsResult&)>;
 // retains the selected child's statistics and descendants and deletes only
 // unreachable sibling branches. Different decision actions that produce an
 // identical complete GameState share one sibling child and its statistics.
+// Search-path trade-order metadata must also match before folding children.
 class MctsSession {
 public:
     explicit MctsSession(GameState state, MctsConfig config = {});
@@ -77,7 +82,9 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
-// Perfect-information Monte Carlo tree search over a GameState. Chance actions
+// Search entry points for complete GameState and observer InformationState.
+// Information search samples complete worlds from the observer's posterior.
+// Chance actions
 // use Game::chanceOutcomes(); opposing decision nodes optimize against the
 // requested perspective. Resignation is deliberately excluded as a dominated
 // branch. Non-terminal rollouts use a bounded state evaluator.
@@ -86,6 +93,9 @@ public:
     explicit MctsEngine(MctsConfig config = {});
 
     MctsResult search(const GameState& state) const;
+    MctsResult search(const InformationState& state) const;
+    MctsResult search(const InformationState& state, std::stop_token stopToken,
+                      const MctsProgressCallback& progress) const;
     MctsResult search(const GameState& state, PlayerId perspective) const;
     // Reuses one tree until the iteration limit or stop request. The callback
     // receives immutable snapshots after the first iteration and then every
@@ -95,6 +105,26 @@ public:
 
 private:
     MctsConfig config_;
+};
+
+// Persistent search using only an observer's InformationState at its boundary.
+// Samples worlds according to their posterior and reuses a tree per world.
+class InformationMctsSession {
+public:
+    explicit InformationMctsSession(InformationState state, MctsConfig config = {});
+    ~InformationMctsSession();
+    InformationMctsSession(InformationMctsSession&&) noexcept;
+    InformationMctsSession& operator=(InformationMctsSession&&) noexcept;
+    MctsResult run();
+    MctsResult run(std::stop_token stopToken, const MctsProgressCallback& progress);
+    MctsResult result();
+    StepResult transform(const Action& observation);
+    // Synchronize to a transformation already applied by the caller.
+    bool synchronize(const Action& observation, const InformationState& state);
+    const InformationState& state() const;
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
 } // namespace catan

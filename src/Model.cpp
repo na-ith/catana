@@ -63,14 +63,28 @@ std::string toString(const Action& action) {
             out << "discard [";
             for (std::size_t i = 0; i < ResourceCount; ++i) { if (i) out << ','; out << +value.cards[i]; }
             out << ']';
+        } else if constexpr (std::is_same_v<T, ResolveDiscards>) {
+            out << "resolve simultaneous discards";
+            for (std::size_t p = 0; p < PlayerCount; ++p)
+                out << " | " << toString(static_cast<PlayerId>(p)) << ": "
+                    << toString(Action{DiscardResources{value.discarded[p]}});
         } else if constexpr (std::is_same_v<T, MoveRobber>) out << "move robber to hex " << +value.hex.value;
         else if constexpr (std::is_same_v<T, StealResource>) out << "steal " << toString(value.resource);
         else if constexpr (std::is_same_v<T, BuildSettlement>) out << "build settlement at vertex " << +value.vertex.value;
         else if constexpr (std::is_same_v<T, BuildRoad>) out << "build road at edge " << +value.edge.value;
         else if constexpr (std::is_same_v<T, BuildCity>) out << "build city at vertex " << +value.vertex.value;
         else if constexpr (std::is_same_v<T, MaritimeTrade>) out << "trade " << toString(value.give) << " for " << toString(value.receive);
+        else if constexpr (std::is_same_v<T, MaritimeTradeBatch>) {
+            out << "trade batch (" << value.trades.size() << "): ";
+            for (std::size_t i = 0; i < value.trades.size(); ++i) {
+                if (i) out << "; ";
+                out << toString(value.trades[i].give) << " -> " << toString(value.trades[i].receive);
+            }
+        }
         else if constexpr (std::is_same_v<T, BuyDevelopmentCard>) out << "buy development card";
         else if constexpr (std::is_same_v<T, DrawDevelopmentCard>) out << "draw " << toString(value.card);
+        else if constexpr (std::is_same_v<T, DrawUnknownDevelopmentCard>) out << "draw unknown development card";
+        else if constexpr (std::is_same_v<T, ObserveVictory>) out << "observe victory for " << toString(value.player);
         else if constexpr (std::is_same_v<T, PlayKnight>) out << "play knight";
         else if constexpr (std::is_same_v<T, PlayRoadBuilding>) out << "play road building";
         else if constexpr (std::is_same_v<T, PlayYearOfPlenty>) out << "play year of plenty";

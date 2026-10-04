@@ -144,7 +144,7 @@ TEST(initial_road_must_touch_the_settlement_just_placed) {
         }
     }
     REQUIRE(found);
-    CHECK(!game.step(PlaceRoad{unrelated}).accepted);
+    CHECK(!game.transform(PlaceRoad{unrelated}).accepted);
 }
 
 TEST(settlement_distance_rule_applies_during_setup) {

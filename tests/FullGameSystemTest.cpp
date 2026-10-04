@@ -25,14 +25,14 @@ constexpr std::uint32_t BoardSeed = 20260927;
 template <typename T>
 std::vector<T> actions(const Game& game) {
     std::vector<T> result;
-    for (const auto& action : game.legalActions())
+    for (const auto& action : game.legalTransformations())
         if (const auto* value = std::get_if<T>(&action)) result.push_back(*value);
     return result;
 }
 
 template <typename T>
 std::optional<T> firstAction(const Game& game) {
-    for (const auto& action : game.legalActions())
+    for (const auto& action : game.legalTransformations())
         if (const auto* value = std::get_if<T>(&action)) return *value;
     return std::nullopt;
 }
@@ -128,7 +128,9 @@ public:
     }
 
 private:
-    static constexpr std::size_t ResignIndex = std::variant_size_v<Action> - 1;
+    // Observation-only variants belong to InformationState, not the rules
+    // playthrough. Find the simulator's final action explicitly.
+    static constexpr std::size_t ResignIndex = Action{Resign{}}.index();
     Game game_;
     std::array<bool, std::variant_size_v<Action>> seenActions_{};
     std::vector<std::string> trace_;
@@ -166,12 +168,16 @@ private:
 
     void apply(const Action& action) {
         const auto phase = game_.state().turn.phase;
-        const auto result = game_.step(action);
+        const auto pending = game_.state().turn.pendingDiscards;
+        const auto result = game_.transform(action);
         require(result.accepted, "legal scenario action was rejected: " + toString(action) + ": " + result.message);
         seenActions_[action.index()] = true;
         ++acceptedSteps_;
         trace_.push_back(toString(action));
-        if (std::holds_alternative<DiscardResources>(action)) ++discardDecisions_;
+        if (std::holds_alternative<ResolveDiscards>(action)) {
+            discardDecisions_ += static_cast<unsigned>(std::count_if(pending.begin(), pending.end(), [](auto n) { return n > 0; }));
+            seenActions_[Action{DiscardResources{}}.index()] = true;
+        }
         if (std::holds_alternative<StealResource>(action)) ++robberSteals_;
         if (std::holds_alternative<ChooseYearOfPlentyResource>(action)) ++plentyPicks_;
         if (std::holds_alternative<PlayMonopoly>(action)) ++monopoliesPlayed_;
@@ -185,7 +191,7 @@ private:
 
     void rejectAnIllegalOpeningAction() {
         const auto before = game_.state().turn.phase;
-        const auto result = game_.step(BeginRoll{});
+        const auto result = game_.transform(BeginRoll{});
         require(!result.accepted, "BeginRoll should be rejected during initial placement");
         require(game_.state().turn.phase == before, "rejected action changed the phase");
     }
@@ -320,9 +326,12 @@ private:
         while (true) {
             switch (game_.state().turn.phase) {
             case Phase::Discarding: {
-                const auto discard = firstAction<DiscardResources>(game_);
-                require(discard.has_value(), "discard phase has no legal discard");
-                apply(*discard);
+                ResolveDiscards joint{};
+                for (std::size_t p = 0; p < PlayerCount; ++p) {
+                    const auto choices = game_.discardChoices(static_cast<PlayerId>(p));
+                    if (!choices.empty()) joint.discarded[p] = std::get<DiscardResources>(choices.front()).cards;
+                }
+                apply(joint);
                 break;
             }
             case Phase::MoveRobber:
@@ -409,7 +418,7 @@ private:
         require(game_.state().turn.phase == Phase::DevelopmentDraw, "buy did not enter DevelopmentDraw");
         const auto card = DevelopmentPlan[nextDevelopmentCard_++];
         const auto draw = DrawDevelopmentCard{card};
-        const auto legal = game_.legalActions();
+        const auto legal = game_.legalTransformations();
         require(std::find(legal.begin(), legal.end(), Action{draw}) != legal.end(),
                 "planned development card is unavailable");
         apply(draw);

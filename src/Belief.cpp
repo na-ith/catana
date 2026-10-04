@@ -90,7 +90,7 @@ void DevelopmentBelief::observe(const GameState& before, const Action& action,
 
         for (const auto& [observedAction, likelihood] : observations) {
             Game branch = possible;
-            const auto result = branch.step(observedAction);
+            const auto result = branch.transform(observedAction);
             if (!result.accepted || !samePublicResolution(branch.state(), after)) continue;
             auto candidate = hypothesisOf(branch.state(), hypothesis.probability * likelihood);
             const auto key = keyOf(candidate);

@@ -49,10 +49,10 @@ TEST(both_players_discard_before_the_roller_moves_the_robber) {
     auto game = gameReadyToRollWithHands(resources(10, 0, 0, 0, 0), resources(0, 11, 0, 0, 0));
     roll(game, 7);
     CHECK_EQ(game.decisionPlayer(), PlayerId::One);
-    accepted(game, DiscardResources{resources(5, 0, 0, 0, 0)});
-    CHECK_EQ(game.state().turn.phase, Phase::Discarding);
-    CHECK_EQ(game.decisionPlayer(), PlayerId::Two);
-    accepted(game, DiscardResources{resources(0, 5, 0, 0, 0)});
+    const auto before = game.state();
+    CHECK(!game.transform(DiscardResources{resources(5, 0, 0, 0, 0)}).accepted);
+    CHECK_EQ(game.state(), before);
+    accepted(game, ResolveDiscards{{resources(5, 0, 0, 0, 0), resources(0, 5, 0, 0, 0)}});
     CHECK_EQ(game.state().turn.phase, Phase::MoveRobber);
     CHECK_EQ(game.decisionPlayer(), PlayerId::One);
     CHECK_EQ(game.state().players[0].resources[index(Resource::Lumber)], std::uint8_t{5});
@@ -62,10 +62,54 @@ TEST(both_players_discard_before_the_roller_moves_the_robber) {
 TEST(discard_must_have_the_exact_required_size_and_owned_cards) {
     auto game = gameReadyToRollWithHands(resources(6, 4, 0, 0, 0), resources(0, 0, 0, 0, 0));
     roll(game, 7);
-    CHECK(!game.step(DiscardResources{resources(4, 0, 0, 0, 0)}).accepted);
-    CHECK(!game.step(DiscardResources{resources(6, 0, 0, 0, 0)}).accepted);
-    CHECK(!game.step(DiscardResources{resources(0, 5, 0, 0, 0)}).accepted);
-    CHECK(game.step(DiscardResources{resources(3, 2, 0, 0, 0)}).accepted);
+    CHECK(!game.transform(DiscardResources{resources(4, 0, 0, 0, 0)}).accepted);
+    CHECK(!game.transform(DiscardResources{resources(6, 0, 0, 0, 0)}).accepted);
+    CHECK(!game.transform(DiscardResources{resources(0, 5, 0, 0, 0)}).accepted);
+    CHECK(game.transform(DiscardResources{resources(3, 2, 0, 0, 0)}).accepted);
+}
+
+TEST(joint_discard_validation_is_atomic_and_checks_both_hands) {
+    auto game = gameReadyToRollWithHands(resources(6, 4, 0, 0, 0), resources(0, 0, 6, 4, 1));
+    roll(game, 7);
+    const auto before = game.state();
+    for (const auto& invalid : std::vector<ResolveDiscards>{
+             {{resources(3, 2, 0, 0, 0), resources(0, 0, 4, 0, 0)}},
+             {{resources(3, 2, 0, 0, 0), resources(0, 0, 0, 5, 0)}},
+             {{resources(0, 5, 0, 0, 0), resources(0, 0, 3, 2, 0)}}}) {
+        CHECK(!game.transform(invalid).accepted);
+        CHECK_EQ(game.state(), before);
+    }
+    CHECK_EQ(game.discardChoices(PlayerId::One).size(), std::size_t{5});
+    CHECK(!game.discardChoices(PlayerId::Two).empty());
+    CHECK_EQ(game.state(), before);
+    accepted(game, ResolveDiscards{{resources(3, 2, 0, 0, 0), resources(0, 0, 3, 2, 0)}});
+    CHECK_EQ(game.state().players[0].resources, resources(3, 2, 0, 0, 0));
+    CHECK_EQ(game.state().players[1].resources, resources(0, 0, 3, 2, 1));
+    CHECK_EQ(game.state().turn.pendingDiscards, (std::array<std::uint8_t, 2>{0, 0}));
+    for (std::size_t r = 0; r < ResourceCount; ++r)
+        CHECK_EQ(game.state().bank.cards[r], before.bank.cards[r] + before.players[0].resources[r]
+                 - game.state().players[0].resources[r] + before.players[1].resources[r]
+                 - game.state().players[1].resources[r]);
+    const auto resolved = game.state();
+    CHECK(!game.transform(ResolveDiscards{}).accepted);
+    CHECK_EQ(game.state(), resolved);
+}
+
+TEST(joint_discard_requires_zero_for_player_not_discarding_and_returns_to_active_roller) {
+    auto game = gameReadyToRollWithHands(resources(9, 0, 0, 0, 0), resources(0, 11, 0, 0, 0));
+    auto state = game.state();
+    state.activePlayer = PlayerId::Two;
+    state.turn.decisionPlayer = PlayerId::Two;
+    game = Game(state);
+    roll(game, 7);
+    const auto before = game.state();
+    CHECK(!game.transform(ResolveDiscards{{resources(1, 0, 0, 0, 0), resources(0, 5, 0, 0, 0)}}).accepted);
+    CHECK_EQ(game.state(), before);
+    CHECK(game.discardChoices(PlayerId::One).empty());
+    accepted(game, ResolveDiscards{{Resources{}, resources(0, 5, 0, 0, 0)}});
+    CHECK_EQ(game.state().turn.phase, Phase::MoveRobber);
+    CHECK_EQ(game.decisionPlayer(), PlayerId::Two);
+    CHECK_EQ(game.state().players[0].resources, before.players[0].resources);
 }
 
 TEST(friendly_robber_protects_two_public_points_and_ignores_hidden_vp_cards) {
@@ -139,7 +183,7 @@ TEST(robber_must_move_to_a_different_hex) {
     auto state = blankState(Phase::MoveRobber);
     state.turn.returnPhase = Phase::Main;
     Game game(state);
-    CHECK(!game.step(MoveRobber{state.board.robberHex}).accepted);
+    CHECK(!game.transform(MoveRobber{state.board.robberHex}).accepted);
 }
 
 TEST(robber_move_creates_weighted_random_steal_then_transfers_one_card) {
@@ -199,5 +243,5 @@ TEST(resignation_immediately_awards_the_other_player) {
     accepted(game, Resign{});
     CHECK_EQ(game.state().winner, std::optional<PlayerId>{PlayerId::One});
     CHECK_EQ(game.state().turn.phase, Phase::Finished);
-    CHECK(game.legalActions().empty());
+    CHECK(game.legalTransformations().empty());
 }

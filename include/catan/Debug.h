@@ -9,7 +9,7 @@
 
 namespace catan::debug {
 
-enum class ViewerCommandType { SelectAction, RandomChance, Rewind, ToggleTree };
+enum class ViewerCommandType { SelectAction, SelectTransformation, ObserveVictory, RandomChance, Rewind, ToggleTree };
 
 struct ViewerCommand {
     ViewerCommandType type{ViewerCommandType::SelectAction};
@@ -38,6 +38,14 @@ bool renderStateImage(const GameState& state,
                       const MctsResult& analysis,
                       const std::filesystem::path& output,
                       std::string* error = nullptr);
+bool writeStateJson(const InformationState& state, const std::filesystem::path& output,
+                    std::string* error = nullptr);
+bool writeStateJson(const InformationState& state, const MctsResult& analysis,
+                    const std::filesystem::path& output, std::string* error = nullptr);
+bool renderStateImage(const InformationState& state, const std::filesystem::path& output,
+                      std::string* error = nullptr);
+bool renderStateImage(const InformationState& state, const MctsResult& analysis,
+                      const std::filesystem::path& output, std::string* error = nullptr);
 
 // Long-running debug viewer. start() launches the Python localhost viewer in
 // a browser window; update() atomically publishes subsequent states.
@@ -55,6 +63,10 @@ public:
     bool update(const GameState& state, const MctsResult& analysis, std::string* error = nullptr);
     void setRewindAvailable(bool available);
     void setTreeRunning(PlayerId player, bool running);
+    // Supply masked development-card display and exact posterior summaries.
+    void setInformationState(const InformationState& state);
+    void setDiscardInput(std::optional<PlayerId> player,
+                         std::array<bool, PlayerCount> selected = {});
     std::optional<ViewerCommand> takeCommand(std::string* error = nullptr);
     std::uint64_t positionVersion() const;
     bool running() const;

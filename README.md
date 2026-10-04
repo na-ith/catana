@@ -15,6 +15,16 @@ The CLI lists every legal action. At a chance node it adds a final synthetic `ra
 
 At a player decision, enter `mcts [iterations]` to print the estimated win percentage and visit count for every legal action. Enter `best [iterations]` to run the same search and apply its highest-rated action. Dice rolls, development-card draws, and robber steals remain weighted chance outcomes rather than player choices.
 
+Search groups consecutive bank trades into a `trade batch` and keeps one
+sequence per resulting hand. Select a batch from the CLI's MCTS results or
+click its viewer analysis row to apply all exchanges; one rewind undoes the
+whole batch. Ordinary single trades remain available for manual stepping.
+Build/trade orderings are removed only when replay proves them equivalent,
+preserving new ports and bank shortages. Development-card purchases and plays
+reopen trading. Very large trade spaces fall back to individual trades rather
+than omit choices; the enumeration budget is `MctsConfig::maxTradeBatchStates`.
+Details and rollout-policy changes are in [MCTS_DEVIATIONS.md](docs/MCTS_DEVIATIONS.md).
+
 The search layer is also available directly:
 
 ```cpp
@@ -31,7 +41,7 @@ for (const auto& option : result.actions) {
     // option.estimatedWinProbability (0.0 to 1.0)
     // option.visits
 }
-if (result.bestAction) game.step(*result.bestAction);
+if (result.bestAction) game.transform(*result.bestAction);
 ```
 
 `MctsEngine` searches the complete state passed to it. The live stepper layers player-specific development-card beliefs over that core: each player knows their own cards and searches weighted determinizations of the opponent's possible cards and the remaining deck. Opponent decision nodes minimize the searching player's result, while dice, development draws, and steals are sampled from `Game::chanceOutcomes()`. Rollouts that do not finish within the configured depth use a bounded position evaluation, so reported percentages are estimates rather than exact solved probabilities.
@@ -55,6 +65,61 @@ This starts a Python localhost viewer and opens it in a new browser window. The 
 When the visualizer is enabled, each player gets an independent fixed-perspective, root-parallel belief tree. Both run automatically while the CLI waits for input, and the **P1 tree** and **P2 tree** switches independently pause or resume their calculation. `--mcts-threads N` sets the workers per enabled player tree. A private development-card draw advances the owner's workers through the observed card while the other player's workers sample the hidden outcome; incompatible workers are rebuilt from the exact Bayesian posterior. Public actions retain compatible subtrees in both forests.
 
 The analysis panel shows the acting player's belief tree, refreshes as work completes, ranks every current action by estimated win percentage, retains its original CLI index, shows combined visits, worker count, explored depth, and unique root nodes, and highlights the current recommendation. Hover an analysis row to highlight its corresponding board or state element; click it to apply that action. At chance nodes, **random weighted outcome** samples a concrete result without adding a synthetic MCTS branch. **Rewind one action** restores the complete game, debugging RNG, and both development-card beliefs. Stale clicks from older positions are ignored. Rewinding starts fresh search trees at the restored beliefs because discarded ancestors are not retained.
+
+### Play from one player's information
+
+Use `--perspective p1` or `--perspective p2` to follow a real game with only
+that player's private development cards available:
+
+```sh
+./build/catan_cli 42 --perspective p1 --visualizer
+./build/catan_cli --board colonist-game.jsonl --perspective p2 --visualizer
+```
+
+Only the selected player's forest is created and run. The opponent's tree
+switch is disabled. The viewer's move selector lists all legal transformations
+even when no MCTS analysis is available. On the opponent's turn, select what
+they actually did and click **Record opponent move** (or enter its number in
+the CLI). Selecting **buy development card** automatically resolves an
+unknown draw into a Bayesian distribution; it never asks for or invents an
+authoritative opponent card. A subsequent observed card play removes
+incompatible possibilities, while other unplayed cards can remain uncertain.
+On your own purchase, select the card you actually received at the development
+draw step. Enter public dice and steal outcomes as observed, too.
+The viewer offers **Record outcome** for these choices and **Random (debug)**
+for sampling a chance outcome. The perspective and acting player are shown
+above the board; you can still click MCTS recommendations on your own turn.
+
+Resources are known for both players. The CLI, JSON exports and viewer mask
+opponent development-card identities and total private VP. The viewer shows
+expected opponent card counts and expected deck composition, labeled as
+estimates. `rewind` restores the complete information distribution; an
+opponent purchase and its automatic unknown draw rewind together. Use
+`winner p1` or `winner p2` to report a victory consistent with the possible
+worlds, including a hidden VP draw that ended the game.
+
+Without the flag, the original full-game debugging mode still runs both
+observer forests. The seeded simulator selects the real development draws,
+but each forest receives only observations available to its player.
+
+The engine entry point accepts `InformationState` directly:
+
+```cpp
+catan::InformationState information(initialGame.state(), catan::PlayerId::One);
+catan::InformationMctsSession tree(information, config);
+auto evaluation = tree.run();
+// For an opponent purchase, apply both observations; no card identity needed.
+tree.transform(catan::BuyDevelopmentCard{});
+tree.transform(catan::DrawUnknownDevelopmentCard{});
+```
+
+The initial position is a known prior, normally the empty board before setup.
+`InformationState::state()` is a masked display projection, not a complete
+`GameState` to feed back into the simulator. `legalTransformations()`,
+`chanceOutcomes()` and `transform()` operate on the whole joint distribution.
+`MctsEngine::search(information)` supports a non-persistent search as well.
+The search still uses sampled complete-world simulations internally; this
+interface change does not implement full information-set MCTS.
 
 ### Render the current state
 
@@ -230,6 +295,20 @@ ctest --test-dir build --output-on-failure -L system
 The rule-to-test matrix and explicit limits of public Colonist parity are documented in [`tests/RULE_COVERAGE.md`](tests/RULE_COVERAGE.md).
 
 ## Implemented rules
+
+Discards after a seven resolve simultaneously. In the CLI or live viewer,
+record your discard first, then the opponent's observed discard. Neither hand
+changes until all required choices have been supplied. Rewind cancels pending
+selections; after resolution, one rewind restores both original hands.
+
+For C++ callers, use `Game::discardChoices(player)` or
+`InformationState::discardChoices(player)` for each required participant, then
+call `transform(ResolveDiscards{...})` with both resource vectors (zero for a
+player who owes nothing). Complete pairs are validated directly, rather than
+enumerating their potentially large Cartesian product. `DiscardResources`
+alone is accepted only when exactly one player owes cards. MCTS evaluates your
+options using a uniform opponent-discard policy from the pre-discard state;
+the approximation is recorded in [`docs/MCTS_DEVIATIONS.md`](docs/MCTS_DEVIATIONS.md).
 
 - snake-order initial placements and second-settlement resources;
 - production, bank shortages, robber blocking, random steals, and discarding;

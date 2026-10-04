@@ -22,9 +22,18 @@ public:
     const GameState& state() const { return state_; }
     PlayerId decisionPlayer() const { return state_.turn.decisionPlayer; }
 
-    std::vector<Action> legalActions() const;
+    // Joint discard resolutions are validated by transform, not exhaustively
+    // enumerated here; use discardChoices to construct ResolveDiscards.
+    std::vector<Action> legalTransformations() const;
+    // Individual choices, generated from the unchanged pre-discard position.
+    // When both players owe cards, submit their choices as ResolveDiscards.
+    std::vector<Action> discardChoices(PlayerId player) const;
+    // Validate every ordered exchange, not merely the net resource change.
+    // Batches are accepted by transform but not exhaustively enumerated by
+    // legalTransformations (which retains normal single maritime trades).
+    bool canTradeBatch(const MaritimeTradeBatch& batch) const;
     std::vector<WeightedAction> chanceOutcomes() const;
-    StepResult step(const Action& action);
+    StepResult transform(const Action& action);
 
 private:
     GameState state_;

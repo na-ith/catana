@@ -75,7 +75,15 @@ Game::Game(GameState state) : state_(std::move(state)) {
     if (state_.turn.phase == Phase::DiceRoll) prepareDiceDraw();
 }
 
-std::vector<Action> Game::legalActions() const {
+std::vector<Action> Game::discardChoices(PlayerId player) const {
+    std::vector<Action> result;
+    if (state_.turn.phase == Phase::Discarding && state_.turn.pendingDiscards[index(player)])
+        enumerateDiscards(state_.players[index(player)].resources,
+                         state_.turn.pendingDiscards[index(player)], result);
+    return result;
+}
+
+std::vector<Action> Game::legalTransformations() const {
     std::vector<Action> result;
     if (state_.turn.phase == Phase::Finished) return result;
     const PlayerId player = state_.turn.decisionPlayer;
@@ -103,7 +111,10 @@ std::vector<Action> Game::legalActions() const {
         for (const auto& outcome : chanceOutcomes()) result.push_back(outcome.action);
         break;
     case Phase::Discarding:
-        enumerateDiscards(playerState.resources, state_.turn.pendingDiscards[index(player)], result);
+        // Joint combinations are intentionally not enumerated (Cartesian
+        // explosion). Obtain each participant's choices with discardChoices.
+        if (!state_.turn.pendingDiscards[index(opponent(player))])
+            enumerateDiscards(playerState.resources, state_.turn.pendingDiscards[index(player)], result);
         break;
     case Phase::MoveRobber:
         for (std::size_t h = 0; h < BoardTopology::HexCount; ++h) {
@@ -395,9 +406,67 @@ void Game::autoFinishFreeRoads() {
     if (!canPlace) finishDevelopmentResolution();
 }
 
-StepResult Game::step(const Action& action) {
-    const auto legal = legalActions();
-    if (std::none_of(legal.begin(), legal.end(), [&](const Action& candidate) { return sameAction(candidate, action); }))
+bool Game::canTradeBatch(const MaritimeTradeBatch& batch) const {
+    if (state_.turn.phase != Phase::Main || batch.trades.empty()) return false;
+    auto hand = state_.players[index(decisionPlayer())].resources;
+    auto bank = state_.bank.cards;
+    for (const auto& trade : batch.trades) {
+        const auto give = index(trade.give), receive = index(trade.receive);
+        if (give >= ResourceCount || receive >= ResourceCount || give == receive) return false;
+        const auto rate = maritimeRate(state_, decisionPlayer(), trade.give);
+        if (hand[give] < rate || bank[receive] == 0) return false;
+        hand[give] -= rate;
+        bank[give] += rate;
+        --bank[receive];
+        ++hand[receive];
+    }
+    return true;
+}
+
+StepResult Game::transform(const Action& action) {
+    if (const auto* batch = std::get_if<MaritimeTradeBatch>(&action)) {
+        if (!canTradeBatch(*batch)) return {false, "illegal trade batch", {}};
+        const auto before = state_;
+        // No information or phase changes occur inside this sequence.
+        // Validation above finishes before either hand or bank is changed.
+        for (const auto& trade : batch->trades) {
+            const auto rate = maritimeRate(state_, decisionPlayer(), trade.give);
+            state_.players[index(decisionPlayer())].resources[index(trade.give)] -= rate;
+            state_.bank.cards[index(trade.give)] += rate;
+            --state_.bank.cards[index(trade.receive)];
+            ++state_.players[index(decisionPlayer())].resources[index(trade.receive)];
+        }
+        std::string reason;
+        if (!validateState(state_, &reason)) {
+            state_ = before;
+            return {false, "internal state invariant failed: " + reason, {}};
+        }
+        return {true, "ok", {toString(action)}};
+    }
+    // A single-player discard is a shorthand for an atomic resolution only
+    // when the other player owes nothing. Never expose a half-discarded state.
+    if (const auto* choice = std::get_if<DiscardResources>(&action)) {
+        if (state_.turn.phase != Phase::Discarding ||
+            state_.turn.pendingDiscards[index(opponent(decisionPlayer()))])
+            return {false, "both discard choices are required; submit ResolveDiscards", {}};
+        ResolveDiscards resolution{};
+        resolution.discarded[index(decisionPlayer())] = choice->cards;
+        return transform(resolution);
+    }
+    const auto* discards = std::get_if<ResolveDiscards>(&action);
+    if (discards) {
+        if (state_.turn.phase != Phase::Discarding)
+            return {false, "no discards are pending", {}};
+        for (std::size_t p = 0; p < PlayerCount; ++p) {
+            if (total(discards->discarded[p]) != state_.turn.pendingDiscards[p])
+                return {false, "incorrect discard count", {}};
+            for (std::size_t r = 0; r < ResourceCount; ++r)
+                if (discards->discarded[p][r] > state_.players[p].resources[r])
+                    return {false, "discard exceeds player's resource hand", {}};
+        }
+    }
+    const auto legal = legalTransformations();
+    if (!discards && std::none_of(legal.begin(), legal.end(), [&](const Action& candidate) { return sameAction(candidate, action); }))
         return {false, "illegal action in phase " + std::string(toString(state_.turn.phase)), {}};
 
     const GameState before = state_;
@@ -449,15 +518,14 @@ StepResult Game::step(const Action& action) {
             distribute(value->sum, result.events);
             state_.turn.phase = Phase::Main;
         }
-    } else if (const auto* value = std::get_if<DiscardResources>(&action)) {
-        for (std::size_t r = 0; r < ResourceCount; ++r) {
-            state_.players[index(player)].resources[r] -= value->cards[r];
-            state_.bank.cards[r] += value->cards[r];
-        }
-        state_.turn.pendingDiscards[index(player)] = 0;
-        auto next = std::find_if(state_.turn.pendingDiscards.begin(), state_.turn.pendingDiscards.end(), [](auto n) { return n > 0; });
-        if (next == state_.turn.pendingDiscards.end()) beginRobber(state_.activePlayer, Phase::Main);
-        else state_.turn.decisionPlayer = static_cast<PlayerId>(std::distance(state_.turn.pendingDiscards.begin(), next));
+    } else if (discards) {
+        for (std::size_t p = 0; p < PlayerCount; ++p)
+            for (std::size_t r = 0; r < ResourceCount; ++r) {
+                state_.players[p].resources[r] -= discards->discarded[p][r];
+                state_.bank.cards[r] += discards->discarded[p][r];
+            }
+        state_.turn.pendingDiscards.fill(0);
+        beginRobber(state_.activePlayer, Phase::Main);
     } else if (const auto* value = std::get_if<MoveRobber>(&action)) {
         state_.board.robberHex = value->hex;
         finishRobberMove(result.events);

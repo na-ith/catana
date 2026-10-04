@@ -62,7 +62,7 @@ inline void placeRoad(catan::GameState& state, catan::EdgeId edge, catan::Player
 
 template <typename ActionType>
 bool hasAction(const catan::Game& game) {
-    const auto legal = game.legalActions();
+    const auto legal = game.legalTransformations();
     return std::any_of(legal.begin(), legal.end(),
                        [](const auto& action) { return std::holds_alternative<ActionType>(action); });
 }
@@ -70,20 +70,20 @@ bool hasAction(const catan::Game& game) {
 template <typename ActionType>
 std::vector<ActionType> actions(const catan::Game& game) {
     std::vector<ActionType> result;
-    for (const auto& action : game.legalActions())
+    for (const auto& action : game.legalTransformations())
         if (const auto* value = std::get_if<ActionType>(&action)) result.push_back(*value);
     return result;
 }
 
 template <typename ActionType>
 ActionType firstAction(const catan::Game& game) {
-    for (const auto& action : game.legalActions())
+    for (const auto& action : game.legalTransformations())
         if (const auto* value = std::get_if<ActionType>(&action)) return *value;
     throw std::runtime_error("expected action was not legal");
 }
 
 inline void accepted(catan::Game& game, const catan::Action& action) {
-    const auto result = game.step(action);
+    const auto result = game.transform(action);
     if (!result.accepted) throw std::runtime_error("expected accepted action: " + result.message);
 }
 

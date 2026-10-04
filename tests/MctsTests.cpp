@@ -7,6 +7,41 @@
 using namespace catan;
 using namespace test_support;
 
+TEST(mcts_simultaneous_discards_search_own_choices_and_reuse_the_joint_outcome) {
+    auto state = blankState(Phase::Discarding);
+    state.turn.pendingDiscards = {5, 5};
+    setResources(state, PlayerId::One, resources(6, 4, 0, 0, 0));
+    setResources(state, PlayerId::Two, resources(0, 0, 6, 4, 0));
+    MctsConfig config;
+    config.iterations = 2000;
+    config.maxRolloutSteps = 0;
+    for (auto observer : {PlayerId::One, PlayerId::Two}) {
+        InformationMctsSession session(InformationState(state, observer), config);
+        const auto result = session.run();
+        CHECK_EQ(result.rootPlayer, observer);
+        CHECK(!result.chanceNode);
+        CHECK_EQ(result.actions.size(), std::size_t{5});
+        const auto choices = Game(state).discardChoices(observer);
+        for (const auto& evaluation : result.actions) {
+            CHECK(std::find(choices.begin(), choices.end(), evaluation.action) != choices.end());
+            CHECK(evaluation.visits > 0);
+            CHECK(!evaluation.chanceProbability.has_value());
+        }
+        CHECK_EQ(session.state().state().players[0].resources, state.players[0].resources);
+        CHECK_EQ(session.state().state().players[1].resources, state.players[1].resources);
+        CHECK(result.maximumDepth >= 2);
+        CHECK(session.transform(ResolveDiscards{{resources(3, 2, 0, 0, 0), resources(0, 0, 3, 2, 0)}}).accepted);
+        CHECK_EQ(session.state().state().turn.phase, Phase::MoveRobber);
+        CHECK(session.result().iterations > 0);
+    }
+    MctsSession raw(state, PlayerId::Two, config);
+    bool rejected = false;
+    try { raw.advance(DiscardResources{resources(0, 0, 3, 2, 0)}); }
+    catch (const std::invalid_argument&) { rejected = true; }
+    CHECK(rejected);
+    CHECK_EQ(raw.state(), state);
+}
+
 namespace {
 
 MctsConfig fastConfig(std::uint32_t seed = 123) {
@@ -37,7 +72,7 @@ GameState immediateCityWinState() {
 TEST(mcts_reports_every_legal_root_action_with_visits_and_a_probability) {
     const auto state = blankState();
     const Game game(state);
-    auto legal = game.legalActions();
+    auto legal = game.legalTransformations();
     legal.erase(std::remove_if(legal.begin(), legal.end(), [](const auto& action) {
         return std::holds_alternative<Resign>(action);
     }), legal.end());
@@ -66,7 +101,7 @@ TEST(mcts_prunes_low_production_setup_but_preserves_simulator_actions) {
     const auto& topology = BoardTopology::standard();
     std::optional<Action> pruned;
     std::size_t kept = 0;
-    for (const auto& action : game.legalActions()) {
+    for (const auto& action : game.legalTransformations()) {
         const auto* settlement = std::get_if<PlaceSettlement>(&action);
         if (!settlement) continue;
         unsigned productive = 0;
@@ -101,7 +136,7 @@ TEST(mcts_robber_pruning_handles_friendly_mixed_and_empty_hand_targets) {
         MctsSession session(position, config);
         const auto result = session.run();
         std::size_t expected = 0;
-        for (const auto& action : Game(position).legalActions()) {
+        for (const auto& action : Game(position).legalTransformations()) {
             const auto* robber = std::get_if<MoveRobber>(&action);
             if (!robber) continue;
             bool self = false, other = false;
@@ -154,7 +189,7 @@ TEST(mcts_prunes_monopoly_choices_that_take_no_cards) {
 
     // The simulator keeps all five choices legal, but the search omits the two
     // that consume the card without transferring anything.
-    CHECK_EQ(Game(state).legalActions().size(), std::size_t{7});
+    CHECK_EQ(Game(state).legalTransformations().size(), std::size_t{7});
     CHECK_EQ(result.actions.size(), std::size_t{4});
     CHECK_EQ(result.uniqueRootChildren, std::size_t{4});
     std::size_t yieldingMonopolies = 0;

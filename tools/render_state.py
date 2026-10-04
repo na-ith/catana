@@ -89,11 +89,16 @@ def write_viewer_command(command_file: Path, command: dict[str, Any]) -> None:
     position = int(command["position_version"])
     if position < 0:
         raise ValueError("invalid position version")
-    if command_type == "action":
+    if command_type in ("action", "transform"):
         action_index = int(command["action_index"])
         if action_index < 0:
             raise ValueError("invalid action index")
-        payload = f"action {position} {action_index}\n"
+        payload = f"{command_type} {position} {action_index}\n"
+    elif command_type == "winner":
+        player = int(command["player"])
+        if player not in (0, 1):
+            raise ValueError("invalid winner player")
+        payload = f"winner {position} {player}\n"
     elif command_type == "random":
         payload = f"random {position}\n"
     elif command_type == "rewind":
@@ -151,6 +156,7 @@ def render(data: dict[str, Any]) -> str:
     position_version = int(controls.get("position_version", 0))
     can_rewind = bool(controls.get("can_rewind", False))
     tree_running = controls.get("tree_running", [True, True])
+    information = data.get("information")
     analysis_rows = (
         len(analysis.get("actions", [])) + (1 if analysis.get("chance_node") else 0)
         if analysis else 0
@@ -170,7 +176,8 @@ def render(data: dict[str, Any]) -> str:
         f'viewBox="0 0 {canvas_width} {canvas_height}" data-position-version="{position_version}" '
         f'data-can-rewind="{str(can_rewind).lower()}" '
         f'data-tree-running-p1="{str(bool(tree_running[0])).lower()}" '
-        f'data-tree-running-p2="{str(bool(tree_running[1])).lower()}">',
+        f'data-tree-running-p2="{str(bool(tree_running[1])).lower()}" '
+        f'data-observer="{information["observer"] if information else ""}">',
         "<style>",
         "text { font-family: Inter, ui-sans-serif, system-ui, sans-serif; fill: #25313a; }",
         ".title { font-size: 24px; font-weight: 700; }",
@@ -357,7 +364,9 @@ def render(data: dict[str, Any]) -> str:
         svg.append(f'<rect x="{PANEL_X + 20}" y="{player_y}" width="360" height="178" rx="13" fill="#f7f4ec" stroke="{colour}" stroke-width="4"/>')
         svg.append(f'<circle cx="{PANEL_X + 45}" cy="{player_y + 28}" r="13" fill="{colour}"/>')
         svg.append(text(PANEL_X + 68, player_y + 34, f'Player {player["id"] + 1}', "heading"))
-        svg.append(text(PANEL_X + 245, player_y + 34, f'{player["total_vp"]} VP ({player["public_vp"]} public)', "heading"))
+        hidden = information and player["id"] != information["observer"]
+        vp_label = f'{player["public_vp"]} public VP' if hidden else f'{player["total_vp"]} VP ({player["public_vp"]} public)'
+        svg.append(text(PANEL_X + 245, player_y + 34, vp_label, "heading"))
         x_value = PANEL_X + 34
         for resource in resource_order:
             resource_id = f'resource-{player["id"]}-{resource}'
@@ -369,10 +378,12 @@ def render(data: dict[str, Any]) -> str:
             x_value += 65
         svg.append(text(PANEL_X + 34, player_y + 119, f'Played knights: {player["played_knights"]}', "label"))
         card_labels = {"knight": "K", "road building": "RB", "year of plenty": "YOP", "monopoly": "M", "victory point": "VP"}
-        svg.append(text(PANEL_X + 34, player_y + 143, "Development cards (omniscient):", "small"))
+        card_title = (f'Unknown development cards: {information["opponent_card_count"]} (expected counts)'
+                      if hidden else "Development cards:" if information else "Development cards (omniscient):")
+        svg.append(text(PANEL_X + 34, player_y + 143, card_title, "small"))
         card_x = PANEL_X + 34
         for card_name in card_order:
-            card_label = (
+            card_label = f'{card_labels[card_name]} {information["expected_opponent_cards"][card_name]:.2f}' if hidden else (
                 f'{card_labels[card_name]} {player["development_cards"][card_name]}'
                 f'(+{player["bought_this_turn"][card_name]})'
             )
@@ -387,7 +398,8 @@ def render(data: dict[str, Any]) -> str:
     svg.append(text(PANEL_X + 25, bank_y, "Bank", "heading"))
     bank_text = "   ".join(f'{name.title()}: {data["bank"][name]}' for name in resource_order)
     svg.append(text(PANEL_X + 25, bank_y + 23, bank_text, "small", extra='data-highlight-id="bank"'))
-    deck_total = sum(data["development_deck"].values())
+    deck_cards = information["expected_deck_cards"] if information else data["development_deck"]
+    deck_total = information["deck_count"] if information else sum(deck_cards.values())
     svg.append(text(
         PANEL_X + 25, bank_y + 47, f'Development deck: {deck_total}', "small",
         extra='data-highlight-id="development-deck"',
@@ -396,7 +408,8 @@ def render(data: dict[str, Any]) -> str:
     for card_name in card_order:
         card_id = f'development-deck-card-{card_name.replace(" ", "-")}'
         svg.append(f'<g class="highlightable" data-highlight-id="{card_id}">')
-        svg.append(text(deck_x, bank_y + 47, f'{card_name[0].upper()} {data["development_deck"][card_name]}', "small"))
+        count = f'{deck_cards[card_name]:.2f}' if information else str(deck_cards[card_name])
+        svg.append(text(deck_x, bank_y + 47, f'{card_name[0].upper()} {count}', "small"))
         svg.append('</g>')
         deck_x += 48
 
@@ -497,7 +510,9 @@ def render(data: dict[str, Any]) -> str:
             svg.append("</g>")
 
     svg.append(text(42, 37, "Catan state debug view", "title"))
-    svg.append(text(795, 804, "IDs are engine Hex/Vertex/Edge IDs · full hands are intentionally visible", "small", "end"))
+    footer = (f'P{information["observer"] + 1} perspective · hidden cards and deck shown as expectations'
+              if information else "IDs are engine Hex/Vertex/Edge IDs · full hands are intentionally visible")
+    svg.append(text(795, 804, footer, "small", "end"))
     svg.append("</svg>")
     return "\n".join(svg)
 
@@ -516,7 +531,13 @@ def serve_live(
 <html><head><meta charset="utf-8"><title>Catan live state</title>
 <style>
 html,body { margin:0; min-height:100%; background:#25292d; font-family:system-ui,sans-serif; }
-#bar { color:#e9ecef; padding:8px 14px; font-size:13px; display:flex; gap:18px; }
+#bar { color:#e9ecef; padding:8px 14px; font-size:13px; display:flex; flex-wrap:wrap; align-items:center; gap:18px; }
+#moves { color:#e9ecef; padding:4px 14px 12px; display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+#move { flex:1; min-width:180px; max-width:650px; padding:6px; background:#fffdf8; border-radius:5px; }
+#moves button { padding:6px 12px; border:1px solid #929da7; border-radius:5px; cursor:pointer; }
+#moves button:disabled { cursor:not-allowed; opacity:.45; }
+#hint { width:100%; color:#c0cbd5; font-size:13px; }
+#mode { font-weight:600; }
 #status { color:#9fd49f; }
 #rewind { border:1px solid #929da7; border-radius:5px; background:#3b454e; color:#fff; padding:3px 10px; cursor:pointer; }
 #rewind:disabled { cursor:not-allowed; opacity:.45; }
@@ -525,13 +546,18 @@ html,body { margin:0; min-height:100%; background:#25292d; font-family:system-ui
 #state { display:block; width:min(1900px, calc(100vw - 20px)); height:auto; margin:0 auto 10px; box-shadow:0 3px 22px #111; }
 #state svg { display:block; width:100%; height:auto; }
 </style></head><body>
-<div id="bar"><strong>Catan live state</strong><button id="rewind" disabled>&#8630; Rewind one action</button><label class="tree-toggle"><input id="tree-p1" type="checkbox" checked>P1 tree</label><label class="tree-toggle"><input id="tree-p2" type="checkbox" checked>P2 tree</label><span id="status">connected</span><span>Click an MCTS action to play it</span></div>
+<div id="bar"><strong>Catan live state</strong><button id="rewind" disabled>&#8630; Rewind one action</button><label class="tree-toggle"><input id="tree-p1" type="checkbox" checked>P1 tree</label><label class="tree-toggle"><input id="tree-p2" type="checkbox" checked>P2 tree</label><span id="status">connected</span></div>
+<div id="moves"><span id="mode">Loading state...</span><select id="move" aria-label="Available moves" disabled></select><button id="apply-move" disabled>Apply move</button><button id="random" disabled>Random (debug)</button><button id="winner-p1" hidden>Record P1 victory</button><button id="winner-p2" hidden>Record P2 victory</button><span id="hint"></span></div>
 <div id="state" aria-label="Catan game state"></div>
 <script>
 let version = "";
 const state = document.getElementById('state');
 const rewind = document.getElementById('rewind');
 const treeToggles = [document.getElementById('tree-p1'), document.getElementById('tree-p2')];
+const moveSelect = document.getElementById('move');
+const applyMove = document.getElementById('apply-move');
+const randomMove = document.getElementById('random');
+const winnerButtons = [document.getElementById('winner-p1'), document.getElementById('winner-p2')];
 let hoveredActionIndex = null;
 let positionVersion = 0;
 let pendingPosition = null;
@@ -579,6 +605,8 @@ async function sendCommand(type, actionIndex = null, extra = {}) {
   if (pendingPosition !== null) return;
   pendingPosition = positionVersion;
   rewind.disabled = true;
+  applyMove.disabled = true;
+  randomMove.disabled = true;
   document.getElementById('status').textContent = 'sending ' + type + '...';
   try {
     const response = await fetch('/command', {
@@ -605,6 +633,9 @@ state.addEventListener('click', event => {
   else if (randomRow) sendCommand('random');
 });
 rewind.addEventListener('click', () => sendCommand('rewind'));
+applyMove.addEventListener('click', () => sendCommand('transform', Number(moveSelect.value)));
+randomMove.addEventListener('click', () => sendCommand('random'));
+winnerButtons.forEach((button, player) => button.addEventListener('click', () => sendCommand('winner', null, {player})));
 treeToggles.forEach((toggle, player) => {
   toggle.addEventListener('change', () => sendCommand('tree', null, {player, enabled: toggle.checked}));
 });
@@ -614,20 +645,59 @@ async function refresh() {
     const response = await fetch('/version', {cache:'no-store'});
     const next = await response.text();
     if (next !== version) {
-      version = next;
-      const image = await fetch('/image.svg?v=' + encodeURIComponent(next), {cache:'no-store'});
+      const [image, snapshot] = await Promise.all([
+        fetch('/image.svg?v=' + encodeURIComponent(next), {cache:'no-store'}),
+        fetch('/state.json?v=' + encodeURIComponent(next), {cache:'no-store'}),
+      ]);
+      if (!image.ok || !snapshot.ok) throw new Error('state unavailable');
+      const game = await snapshot.json();
       state.innerHTML = await image.text();
       const svg = state.firstElementChild;
       const nextPosition = svg ? Number(svg.dataset.positionVersion || 0) : 0;
+      if (nextPosition !== Number(game.controls?.position_version || 0)) return;
+      version = next;
       if (pendingPosition !== null && nextPosition !== pendingPosition) pendingPosition = null;
       positionVersion = nextPosition;
+      const choices = game.transformations || [];
+      const selected = moveSelect.value;
+      moveSelect.replaceChildren(...choices.map(action => {
+        const option = document.createElement('option');
+        option.value = String(action.index);
+        const probability = action.chance_probability === null ? '' : ' (' + (action.chance_probability * 100).toFixed(1) + '%)';
+        option.textContent = action.index + ': ' + action.description + probability;
+        return option;
+      }));
+      if (choices.some(action => String(action.index) === selected)) moveSelect.value = selected;
+      moveSelect.disabled = choices.length === 0;
+      const observer = game.information?.observer;
+      const acting = game.controls.discard_input_player ?? game.turn.decision_player;
+      const opponentMove = observer !== undefined && observer !== acting;
+      const isChance = choices.some(action => action.chance_probability !== null);
+      const hiddenDraw = choices.some(action => action.description === 'draw unknown development card');
+      document.getElementById('mode').textContent = (observer === undefined ? 'Full game' : 'P' + (observer + 1) + ' perspective') + ' | P' + (acting + 1) + ' to move';
+      applyMove.textContent = game.turn.phase === 'discarding' ? 'Record discard choice' : isChance ? 'Record outcome' : opponentMove ? 'Record opponent move' : 'Apply move';
+      document.getElementById('hint').textContent = game.turn.phase === 'discarding'
+        ? 'Record P' + (acting + 1) + "'s discard. Both hands remain unchanged until all required choices are recorded. Rewind cancels pending choices."
+        : opponentMove
+        ? 'Select what the opponent did. Development-card purchases stay unknown.'
+        : game.turn.phase === 'development draw' && observer !== undefined
+          ? 'Select the development card you actually received.'
+          : 'Choose any legal move here, or click an MCTS recommendation below.';
+      applyMove.dataset.available = String(choices.length > 0);
+      randomMove.dataset.available = String(isChance && !hiddenDraw);
+      winnerButtons.forEach((button, player) => { button.hidden = !(game.possible_winners || []).includes(player); });
       rewind.disabled = pendingPosition !== null || !svg || svg.dataset.canRewind !== 'true';
       if (svg) {
         treeToggles[0].checked = svg.dataset.treeRunningP1 !== 'false';
         treeToggles[1].checked = svg.dataset.treeRunningP2 !== 'false';
+        treeToggles.forEach((toggle, player) => {
+          toggle.disabled = svg.dataset.observer !== '' && Number(svg.dataset.observer) !== player;
+        });
       }
       if (hoveredActionIndex !== null) highlightAction(actionRow(hoveredActionIndex));
     }
+    applyMove.disabled = pendingPosition !== null || applyMove.dataset.available !== 'true';
+    randomMove.disabled = pendingPosition !== null || randomMove.dataset.available !== 'true';
     document.getElementById('status').textContent = 'connected';
   } catch (_) {
     document.getElementById('status').textContent = 'viewer disconnected';
@@ -658,6 +728,12 @@ refresh();
                     stat = snapshot.stat()
                     payload = f"{stat.st_mtime_ns}-{stat.st_size}".encode()
                     self.send_bytes(payload, "text/plain; charset=utf-8")
+                except OSError as error:
+                    self.send_bytes(str(error).encode(), "text/plain; charset=utf-8", 503)
+                return
+            if path == "/state.json":
+                try:
+                    self.send_bytes(snapshot.read_bytes(), "application/json")
                 except OSError as error:
                     self.send_bytes(str(error).encode(), "text/plain; charset=utf-8", 503)
                 return

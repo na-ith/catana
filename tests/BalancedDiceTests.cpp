@@ -34,7 +34,7 @@ TEST(decision_to_roll_and_dice_chance_node_are_separate) {
     CHECK(hasAction<BeginRoll>(game));
     accepted(game, BeginRoll{});
     REQUIRE_EQ(game.state().turn.phase, Phase::DiceRoll);
-    for (const auto& action : game.legalActions()) CHECK(isChanceAction(action));
+    for (const auto& action : game.legalTransformations()) CHECK(isChanceAction(action));
 }
 
 TEST(balanced_deck_draws_without_replacement) {
@@ -111,7 +111,7 @@ TEST(seven_adjustment_is_clamped_and_zero_probability_outcomes_are_not_legal) {
     auto game = diceGame(state);
     CHECK_NEAR(probabilityOf(game, RollDice{7}), 0.0, 1e-12);
     bool legalSeven = false;
-    for (const auto& action : game.legalActions()) legalSeven |= action == Action{RollDice{7}};
+    for (const auto& action : game.legalTransformations()) legalSeven |= action == Action{RollDice{7}};
     CHECK(!legalSeven);
 }
 

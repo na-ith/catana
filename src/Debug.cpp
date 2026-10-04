@@ -1,5 +1,6 @@
 #include "catan/Debug.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <chrono>
 #include <fstream>
@@ -33,6 +34,8 @@ struct LiveControls {
     std::uint64_t positionVersion{};
     bool canRewind{};
     std::array<bool, PlayerCount> treeRunning{true, true};
+    std::optional<PlayerId> discardPlayer;
+    std::array<bool, PlayerCount> discardSelected{};
 };
 
 std::string shellQuote(const std::string& value) {
@@ -136,6 +139,12 @@ void writeHighlightTargets(std::ostream& out, const Action& action, PlayerId per
             targets.push_back(resourceTarget(perspective, value.give));
             targets.push_back(resourceTarget(perspective, value.receive));
             targets.push_back("bank");
+        } else if constexpr (std::is_same_v<T, MaritimeTradeBatch>) {
+            for (const auto& trade : value.trades) {
+                targets.push_back(resourceTarget(perspective, trade.give));
+                targets.push_back(resourceTarget(perspective, trade.receive));
+            }
+            targets.push_back("bank");
         } else if constexpr (std::is_same_v<T, BuyDevelopmentCard>) {
             targets.push_back("development-deck");
         } else if constexpr (std::is_same_v<T, DrawDevelopmentCard>) {
@@ -168,7 +177,8 @@ void writeHighlightTargets(std::ostream& out, const Action& action, PlayerId per
 }
 
 bool writeStateJsonImpl(const GameState& state, const MctsResult* analysis, const LiveControls* controls,
-                        const std::filesystem::path& output, std::string* error) {
+                        const std::filesystem::path& output, std::string* error,
+                        const InformationState* information = nullptr) {
     std::error_code directoryError;
     if (output.has_parent_path()) std::filesystem::create_directories(output.parent_path(), directoryError);
     if (directoryError) {
@@ -188,9 +198,32 @@ bool writeStateJsonImpl(const GameState& state, const MctsResult* analysis, cons
             << ",\"can_rewind\":" << (controls->canRewind ? "true" : "false")
             << ",\"tree_running\":["
             << (controls->treeRunning[0] ? "true" : "false") << ','
-            << (controls->treeRunning[1] ? "true" : "false") << "]},\n";
+            << (controls->treeRunning[1] ? "true" : "false") << "]"
+            << ",\"discard_input_player\":";
+        if (controls->discardPlayer) out << index(*controls->discardPlayer);
+        else out << "null";
+        out << ",\"discard_selected\":[" << (controls->discardSelected[0] ? "true" : "false")
+            << ',' << (controls->discardSelected[1] ? "true" : "false") << "]},\n";
     } else {
         out << "null,\n";
+    }
+    if (information) {
+        out << "\"information\":{\"observer\":" << index(information->observer())
+            << ",\"world_count\":" << information->worldCount()
+            << ",\"opponent_card_count\":" << information->opponentCardCount()
+            << ",\"deck_count\":" << information->deckCardCount();
+        for (const bool deck : {false, true}) {
+            out << (deck ? ",\"expected_deck_cards\":{" : ",\"expected_opponent_cards\":{");
+            for (std::size_t c = 0; c < DevelopmentCardTypeCount; ++c) {
+                if (c) out << ',';
+                const auto card = static_cast<DevelopmentCard>(c);
+                writeJsonString(out, toString(card));
+                out << ':' << std::setprecision(17) << (deck ? information->expectedDeckCards(card)
+                                                            : information->expectedOpponentCards(card));
+            }
+            out << '}';
+        }
+        out << "},\n";
     }
     out << "\"turn\":{\"number\":" << state.turnNumber
         << ",\"phase\":\"" << toString(state.turn.phase) << "\""
@@ -274,17 +307,23 @@ bool writeStateJsonImpl(const GameState& state, const MctsResult* analysis, cons
         out << "{\"id\":" << p << ",\"resources\":";
         writeResources(out, value.resources);
         out << ",\"development_cards\":";
-        writeDevelopmentCards(out, value.developmentCards.cards);
+        if (information && player != information->observer()) out << "null";
+        else writeDevelopmentCards(out, value.developmentCards.cards);
         out << ",\"bought_this_turn\":";
-        writeDevelopmentCards(out, value.developmentCards.boughtThisTurn);
+        if (information && player != information->observer()) out << "null";
+        else writeDevelopmentCards(out, value.developmentCards.boughtThisTurn);
         out << ",\"played_knights\":" << +value.playedKnights
             << ",\"public_vp\":" << +publicVictoryPoints(state, player)
-            << ",\"total_vp\":" << +victoryPoints(state, player) << '}';
+            << ",\"total_vp\":";
+        if (information && player != information->observer()) out << "null";
+        else out << +victoryPoints(state, player);
+        out << '}';
     }
     out << "],\n\"bank\":";
     writeResources(out, state.bank.cards);
     out << ",\n\"development_deck\":";
-    writeDevelopmentCards(out, state.developmentDeck.cards);
+    if (information) out << "null";
+    else writeDevelopmentCards(out, state.developmentDeck.cards);
     out << ",\n\"dice\":{\"cards_left\":" << +state.dice.cardsLeft
         << ",\"remaining_by_sum\":";
     writeNumbers(out, state.dice.remainingBySum);
@@ -306,7 +345,40 @@ bool writeStateJsonImpl(const GameState& state, const MctsResult* analysis, cons
     writeOptionalPlayer(out, state.awards.largestArmy);
     out << ",\"road_lengths\":";
     writeNumbers(out, state.awards.roadLengths);
-    out << "},\n\"mcts\":";
+    out << "},\n\"transformations\":[";
+    auto transformations = information ? information->legalTransformations() : Game(state).legalTransformations();
+    if (state.turn.phase == Phase::Discarding) {
+        const auto actor = controls && controls->discardPlayer ? *controls->discardPlayer
+            : information ? information->decisionPlayer() : state.turn.decisionPlayer;
+        transformations = information ? information->discardChoices(actor) : Game(state).discardChoices(actor);
+    }
+    std::erase_if(transformations, [](const Action& action) { return std::holds_alternative<Resign>(action); });
+    const auto chances = information ? information->chanceOutcomes() : Game(state).chanceOutcomes();
+    for (std::size_t i = 0; i < transformations.size(); ++i) {
+        if (i) out << ',';
+        out << "{\"index\":" << i << ",\"description\":";
+        writeJsonString(out, toString(transformations[i]));
+        out << ",\"chance_probability\":";
+        const auto found = std::find_if(chances.begin(), chances.end(),
+            [&](const auto& outcome) { return outcome.action == transformations[i]; });
+        if (found == chances.end()) out << "null";
+        else out << std::setprecision(17) << found->probability;
+        out << '}';
+    }
+    out << "],\n\"possible_winners\":[";
+    bool firstWinner = true;
+    if (information && !state.winner) {
+        for (std::size_t p = 0; p < PlayerCount; ++p) {
+            const auto player = static_cast<PlayerId>(p);
+            if (std::any_of(information->worlds().begin(), information->worlds().end(),
+                           [&](const auto& world) { return world.state.winner == player; })) {
+                if (!firstWinner) out << ',';
+                out << p;
+                firstWinner = false;
+            }
+        }
+    }
+    out << "],\n\"mcts\":";
     if (!analysis) {
         out << "null";
     } else {
@@ -353,7 +425,8 @@ bool writeStateJsonImpl(const GameState& state, const MctsResult* analysis, cons
 }
 
 bool renderStateImageImpl(const GameState& state, const MctsResult* analysis,
-                          const std::filesystem::path& output, std::string* error) {
+                          const std::filesystem::path& output, std::string* error,
+                          const InformationState* information = nullptr) {
     if (output.extension() != ".svg") {
         if (error) *error = "debug renderer output must have an .svg extension";
         return false;
@@ -365,9 +438,7 @@ bool renderStateImageImpl(const GameState& state, const MctsResult* analysis,
         return false;
     }
     const auto snapshot = absoluteOutput.string() + ".json.tmp";
-    const bool wroteSnapshot = analysis
-        ? writeStateJsonImpl(state, analysis, nullptr, snapshot, error)
-        : writeStateJsonImpl(state, nullptr, nullptr, snapshot, error);
+    const bool wroteSnapshot = writeStateJsonImpl(state, analysis, nullptr, snapshot, error, information);
     if (!wroteSnapshot) return false;
 
     const std::string command = shellQuote(CATAN_PYTHON_EXECUTABLE) + " " +
@@ -402,7 +473,23 @@ bool renderStateImage(const GameState& state, const MctsResult& analysis,
     return renderStateImageImpl(state, &analysis, output, error);
 }
 
+bool writeStateJson(const InformationState& state, const std::filesystem::path& output, std::string* error) {
+    return writeStateJsonImpl(state.state(), nullptr, nullptr, output, error, &state);
+}
+bool writeStateJson(const InformationState& state, const MctsResult& analysis,
+                    const std::filesystem::path& output, std::string* error) {
+    return writeStateJsonImpl(state.state(), &analysis, nullptr, output, error, &state);
+}
+bool renderStateImage(const InformationState& state, const std::filesystem::path& output, std::string* error) {
+    return renderStateImageImpl(state.state(), nullptr, output, error, &state);
+}
+bool renderStateImage(const InformationState& state, const MctsResult& analysis,
+                      const std::filesystem::path& output, std::string* error) {
+    return renderStateImageImpl(state.state(), &analysis, output, error, &state);
+}
+
 struct LiveVisualizer::Impl {
+    std::optional<InformationState> information;
     std::filesystem::path snapshot;
     std::filesystem::path readyFile;
     std::filesystem::path commandFile;
@@ -411,6 +498,8 @@ struct LiveVisualizer::Impl {
     std::uint64_t positionVersion{};
     bool canRewind{};
     std::array<bool, PlayerCount> treeRunning{true, true};
+    std::optional<PlayerId> discardPlayer;
+    std::array<bool, PlayerCount> discardSelected{};
 #if !defined(_WIN32)
     mutable pid_t process{-1};
 #endif
@@ -462,8 +551,10 @@ bool LiveVisualizer::update(const GameState& state, std::string* error) {
         ++impl_->positionVersion;
     }
     const auto next = std::filesystem::path(impl_->snapshot.string() + ".next");
-    const LiveControls controls{impl_->positionVersion, impl_->canRewind, impl_->treeRunning};
-    if (!writeStateJsonImpl(state, nullptr, &controls, next, error)) return false;
+    const LiveControls controls{impl_->positionVersion, impl_->canRewind, impl_->treeRunning,
+                                impl_->discardPlayer, impl_->discardSelected};
+    if (!writeStateJsonImpl(state, nullptr, &controls, next, error,
+                            impl_->information ? &*impl_->information : nullptr)) return false;
     std::error_code renameError;
     std::filesystem::rename(next, impl_->snapshot, renameError);
     if (renameError) {
@@ -484,8 +575,10 @@ bool LiveVisualizer::update(const GameState& state, const MctsResult& analysis, 
         ++impl_->positionVersion;
     }
     const auto next = std::filesystem::path(impl_->snapshot.string() + ".next");
-    const LiveControls controls{impl_->positionVersion, impl_->canRewind, impl_->treeRunning};
-    if (!writeStateJsonImpl(state, &analysis, &controls, next, error)) return false;
+    const LiveControls controls{impl_->positionVersion, impl_->canRewind, impl_->treeRunning,
+                                impl_->discardPlayer, impl_->discardSelected};
+    if (!writeStateJsonImpl(state, &analysis, &controls, next, error,
+                            impl_->information ? &*impl_->information : nullptr)) return false;
     std::error_code renameError;
     std::filesystem::rename(next, impl_->snapshot, renameError);
     if (renameError) {
@@ -505,6 +598,19 @@ void LiveVisualizer::setTreeRunning(PlayerId player, bool running) {
     if (!impl_) return;
     std::lock_guard lock(impl_->mutex);
     impl_->treeRunning[index(player)] = running;
+}
+
+void LiveVisualizer::setInformationState(const InformationState& state) {
+    std::lock_guard lock(impl_->mutex);
+    if (!impl_->information || *impl_->information != state) ++impl_->positionVersion;
+    impl_->information = state;
+}
+
+void LiveVisualizer::setDiscardInput(std::optional<PlayerId> player, std::array<bool, PlayerCount> selected) {
+    std::lock_guard lock(impl_->mutex);
+    if (impl_->discardPlayer != player || impl_->discardSelected != selected) ++impl_->positionVersion;
+    impl_->discardPlayer = player;
+    impl_->discardSelected = selected;
 }
 
 std::uint64_t LiveVisualizer::positionVersion() const {
@@ -528,9 +634,14 @@ std::optional<ViewerCommand> LiveVisualizer::takeCommand(std::string* error) {
     std::string type;
     ViewerCommand command;
     bool valid = static_cast<bool>(input >> type >> command.positionVersion);
-    if (valid && type == "action") {
-        command.type = ViewerCommandType::SelectAction;
+    if (valid && (type == "action" || type == "transform")) {
+        command.type = type == "action" ? ViewerCommandType::SelectAction : ViewerCommandType::SelectTransformation;
         valid = static_cast<bool>(input >> command.actionIndex);
+    } else if (valid && type == "winner") {
+        std::size_t player = 0;
+        valid = static_cast<bool>(input >> player) && player < PlayerCount;
+        command.type = ViewerCommandType::ObserveVictory;
+        command.player = static_cast<PlayerId>(player);
     } else if (valid && type == "random") {
         command.type = ViewerCommandType::RandomChance;
     } else if (valid && type == "rewind") {
@@ -578,8 +689,10 @@ bool LiveVisualizer::start(const GameState& state, std::string* error) {
         impl_->positionVersion = 1;
         impl_->canRewind = false;
         impl_->treeRunning = {true, true};
-        const LiveControls controls{impl_->positionVersion, impl_->canRewind, impl_->treeRunning};
-        if (!writeStateJsonImpl(state, nullptr, &controls, impl_->snapshot, error)) return false;
+        const LiveControls controls{impl_->positionVersion, impl_->canRewind, impl_->treeRunning,
+                                    impl_->discardPlayer, impl_->discardSelected};
+        if (!writeStateJsonImpl(state, nullptr, &controls, impl_->snapshot, error,
+                                impl_->information ? &*impl_->information : nullptr)) return false;
     }
 
     std::vector<std::string> arguments{
