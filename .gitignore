@@ -1,4 +1,5 @@
 /target
+.cache
 /build
 .vscode
 __pycache__/
