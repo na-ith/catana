@@ -5,6 +5,7 @@
 #include <functional>
 #include <numeric>
 #include <sstream>
+#include <stdexcept>
 #include <type_traits>
 
 namespace catan {
@@ -55,8 +56,12 @@ bool sameAction(const Action& left, const Action& right) {
 
 } // namespace
 
-Game::Game(std::uint32_t boardSeed) {
-    state_.board = makeStandardBoard(boardSeed);
+Game::Game(std::uint32_t boardSeed) : Game(makeStandardBoard(boardSeed)) {}
+
+Game::Game(BoardState board) {
+    std::string reason;
+    if (!validateInitialBoard(board, &reason)) throw std::invalid_argument(reason);
+    state_.board = std::move(board);
     state_.dice.remainingBySum = StandardDiceCounts;
     state_.dice.cardsLeft = 36;
     state_.turn.phase = Phase::InitialSettlement;

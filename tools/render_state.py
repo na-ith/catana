@@ -29,7 +29,7 @@ BOARD_TOP = 55
 BOARD_WIDTH = 790
 BOARD_HEIGHT = 720
 # SVG's y-axis points down, so a positive angle appears clockwise on screen.
-BOARD_ROTATION_DEGREES = 60.0
+BOARD_ROTATION_DEGREES = -30.0
 PANEL_X = 850
 ANALYSIS_X = 1275
 ANALYSIS_WIDTH = 610

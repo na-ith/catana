@@ -16,6 +16,7 @@ struct StepResult {
 class Game {
 public:
     explicit Game(std::uint32_t boardSeed = 1);
+    explicit Game(BoardState board);
     explicit Game(GameState state);
 
     const GameState& state() const { return state_; }

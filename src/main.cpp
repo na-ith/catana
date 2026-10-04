@@ -1,5 +1,6 @@
 #include "catan/Debug.h"
 #include "catan/Belief.h"
+#include "catan/BoardImport.h"
 #include "catan/Game.h"
 #include "catan/Mcts.h"
 
@@ -379,12 +380,22 @@ private:
 int main(int argc, char** argv) {
     std::uint32_t seed = 1;
     bool seedWasSet = false;
+    bool uninitialized = false;
+    std::optional<std::filesystem::path> boardFile;
     bool enableVisualizer = false;
     std::size_t mctsThreads = std::clamp<unsigned>(std::thread::hardware_concurrency(), 1U, 8U);
     for (int argument = 1; argument < argc; ++argument) {
         const std::string value = argv[argument];
         if (value == "--visualizer") {
             enableVisualizer = true;
+        } else if (value == "--uninitialized") {
+            uninitialized = true;
+        } else if (value == "--board") {
+            if (++argument == argc || boardFile) {
+                std::cerr << "--board requires one snapshot or capture file\n";
+                return 2;
+            }
+            boardFile = argv[argument];
         } else if (value == "--mcts-threads") {
             if (++argument == argc) {
                 std::cerr << "--mcts-threads requires a positive number\n";
@@ -407,7 +418,9 @@ int main(int argc, char** argv) {
             }
             seedWasSet = true;
         } else if (value == "--help" || value == "-h") {
-            std::cout << "usage: catan_cli [SEED | --seed SEED] [--visualizer] [--mcts-threads N]\n";
+            std::cout << "usage: catan_cli [SEED | --seed SEED | --uninitialized | --board FILE] "
+                         "[--visualizer] [--mcts-threads N]\n"
+                         "Uninitialized commands: status, init FILE, init-json JSON, q.\n";
             return 0;
         } else if (value.starts_with('-') || seedWasSet) {
             std::cerr << "unknown or duplicate argument: " << value << '\n';
@@ -421,7 +434,56 @@ int main(int argc, char** argv) {
             seedWasSet = true;
         }
     }
-    catan::Game game(seed);
+    if (seedWasSet && (uninitialized || boardFile)) {
+        std::cerr << "A seed cannot be combined with --uninitialized or --board.\n";
+        return 2;
+    }
+    std::optional<catan::Game> initializedGame;
+    if (!uninitialized && !boardFile) initializedGame.emplace(seed);
+    if (boardFile) {
+        std::string error;
+        const auto board = catan::loadColonistBoard(*boardFile, &error);
+        if (!board) {
+            std::cerr << "Board initialization failed: " << error << '\n';
+            return 2;
+        }
+        initializedGame.emplace(*board);
+    }
+    if (!initializedGame)
+        std::cout << "Colonist stepper is uninitialized. Use 'init FILE' with a decoded "
+                     "snapshot JSON or capture JSONL, or 'init-json JSON' for an inline message; "
+                     "'status' or 'q' are also available.\n";
+    while (!initializedGame) {
+        std::cout << "uninitialized> " << std::flush;
+        std::string line;
+        if (!std::getline(std::cin, line) || line == "q" || line == "quit") return 0;
+        if (line == "status") {
+            std::cout << "State: uninitialized (no board, legal actions, viewer, or MCTS yet).\n";
+            continue;
+        }
+        const bool inlineJson = line.starts_with("init-json ");
+        if (!inlineJson && !line.starts_with("init ")) {
+            std::cout << "Initialize first with 'init FILE' or 'init-json JSON'.\n";
+            continue;
+        }
+        const auto first = line.find_first_not_of(' ', inlineJson ? 10 : 5);
+        if (first == std::string::npos) {
+            std::cout << "init requires a snapshot or capture file.\n";
+            continue;
+        }
+        std::string error;
+        const auto board = inlineJson
+            ? catan::loadColonistBoardJson(line.substr(first), &error)
+            : catan::loadColonistBoard(line.substr(first), &error);
+        if (!board) {
+            std::cout << "Board initialization failed: " << error << '\n';
+            continue;
+        }
+        initializedGame.emplace(*board);
+        boardFile = inlineJson ? "inline JSON" : line.substr(first);
+        std::cout << "Board initialized from " << *boardFile << ". Starting initial placement.\n";
+    }
+    catan::Game game = std::move(*initializedGame);
     catan::debug::LiveVisualizer visualizer;
     if (enableVisualizer) {
         std::string error;
@@ -440,7 +502,10 @@ int main(int argc, char** argv) {
     LiveMctsAnalysis liveAnalysis(visualizer, mctsThreads);
     if (enableVisualizer)
         liveAnalysis.startNew(game.state(), beliefs, seed ^ 0x517cc1b7U);
-    std::cout << "Colonist ranked 1v1 stepper (board seed " << seed << ")\n"
+    std::cout << "Colonist ranked 1v1 stepper (";
+    if (boardFile) std::cout << "imported board " << *boardFile;
+    else std::cout << "board seed " << seed;
+    std::cout << ")\n"
                  "Choose an action number; chance nodes also offer a weighted 'random' option,\n"
                  "'mcts [iterations]' to analyse actions, 'best [iterations]' to play the best action,\n"
                  "'rewind' to undo one action, 'image [file.svg]' to render the state,\n"
@@ -471,6 +536,15 @@ int main(int argc, char** argv) {
         std::optional<catan::debug::ViewerCommand> viewerCommand;
         if (!waitForInputOrViewer(visualizer, enableVisualizer, line, viewerCommand)) break;
         if (!viewerCommand && (line == "q" || line == "quit")) break;
+        if (!viewerCommand && line == "status") {
+            std::cout << "State: initialized | " << catan::toString(game.state().turn.phase)
+                      << " | acting: " << catan::toString(game.decisionPlayer()) << '\n';
+            continue;
+        }
+        if (!viewerCommand && (line.starts_with("init ") || line.starts_with("init-json "))) {
+            std::cout << "Already initialized; start a new --uninitialized process to import another board.\n";
+            continue;
+        }
 
         auto rewindOneAction = [&]() {
             if (history.empty()) {

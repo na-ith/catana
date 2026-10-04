@@ -115,6 +115,107 @@ complete decoded values in the terminal. Stop cleanly with `Ctrl-C`.
 The capture may contain player identifiers or other private game data. Review
 it before sharing it.
 
+### Initialize the CLI from a Colonist board
+
+The CLI has an explicit uninitialized mode. It creates no game, viewer, or search
+tree until it receives and validates a complete board:
+
+```sh
+./build/catan_cli --uninitialized --visualizer
+```
+
+Its stdin initialization API consists of one command per line:
+
+```text
+status
+init /path/to/colonist-game.jsonl
+```
+
+`init` accepts the capture tool's JSONL, a decoded Colonist message or full
+snapshot JSON, or the `catan-board-v1` format described below. Paths may contain
+spaces; pass the path directly after `init` without adding shell quotes. A failed
+import leaves the CLI uninitialized and allows retry. Once successful, the normal
+stepper commands become available and the requested visualizer and background
+MCTS start. A seeded launch is still available as before.
+
+A webpage integration can also send a compact JSON message directly over stdin:
+
+```text
+init-json {"id":123,"data":{"gameState":{"mapState":{...}}}}
+```
+
+The `...` above represents the complete captured fields, not a literal input.
+`init-json` expects the entire JSON on one line. It accepts the same wrappers as
+file import, including a capture record containing `decoded.value`. Inline import
+currently requires macOS or Linux; file import is available through the same API.
+
+To start immediately from an existing capture:
+
+```sh
+./build/catan_cli --board colonist-game.jsonl --visualizer
+```
+
+`--seed` cannot be combined with `--uninitialized` or `--board`. Imported games
+use a fixed internal random seed for reproducible debug chance selections and
+search; it does not generate or alter the imported layout.
+
+This API imports **board layout** and starts a fresh game before Player 1's first
+settlement. It takes terrain, number tokens, and port locations/types. Existing
+pieces, hands, turn state, and dice history in a capture are not restored; the
+initial robber is placed on the desert. For a multi-game capture, the first
+complete supported layout is used. Partial `diff` messages alone are insufficient.
+
+The adapter supports standard radius-two boards with `mapState.tileHexStates`
+and `mapState.portEdgeStates`, represented as indexed objects or arrays. Tiles
+use Colonist's `x`, `y`, `type`, and `diceNumber`; ports use `x`, `y`, `z`, and
+`type`. Terrain enums are 0=desert, 1=lumber, 2=brick, 3=wool, 4=grain, 5=ore;
+sea tiles (8) are ignored and expansion terrain is rejected. Ports use a separate
+enum: 1=generic, 2=lumber, 3=brick, 4=wool, 5=grain, 6=ore. Tile IDs
+and port IDs are translated by coordinates rather than treated as engine IDs.
+
+Other clients can supply a stable normalized format:
+
+```json
+{
+  "schema": "catan-board-v1",
+  "hexes": [{"id": 0, "terrain": "forest", "number": 6}],
+  "ports": [{"edge": 7, "type": "generic"}],
+  "robber_hex": 18
+}
+```
+
+That illustration abbreviates the arrays: a valid input needs all 19 unique
+engine hex IDs and nine ports, the standard terrain/token/port inventories,
+non-overlapping coastal port edges, and the desert's actual ID. Terrain names
+are `forest`, `hills`, `pasture`, `fields`, `mountains`, `desert`; port names
+are `generic`, `lumber`, `brick`, `wool`, `grain`, `ore`. Engine IDs and vertex
+connections are available in the existing debug snapshots.
+
+The adapter can also print normalized JSON with the source-to-engine ID mapping:
+
+```sh
+python3 tools/import_colonist_board.py colonist-game.jsonl
+```
+
+For C++ callers, link `catan_import` and use the same validated boundary:
+
+```cpp
+#include "catan/BoardImport.h"
+#include "catan/Game.h"
+
+std::string error;
+if (auto board = catan::loadColonistBoard("colonist-game.jsonl", &error)) {
+    catan::Game game(*board);
+    // Ready for initial placement with normal bank, deck, and balanced dice.
+}
+// loadColonistBoardJson(decodedJson, &error) accepts inline JSON instead.
+```
+
+JSON decoding is handled by the standalone Python adapter using its standard
+library; the engine also validates the resulting typed `BoardState`. Captured
+layout behavior is covered by fixture-based end-to-end tests; a live Colonist
+capture has not yet been supplied to verify the webpage's current payload.
+
 ## Ranked-rule verification
 
 The custom unit-test runner covers setup, ranked-only rules, production, bank shortages, construction, ports, robber flows, every development card, Bayesian hidden-card tracking, MCTS, awards, balanced dice, victory, invariants, and deterministic playouts:
@@ -158,3 +259,6 @@ The simulator stores the authoritative omniscient state. `DevelopmentBelief` pro
 - `Belief.h`: player-specific Bayesian development-hand/deck hypotheses
 - `Debug.h`: optional JSON snapshot and Python-renderer adapter
 - `tools/render_state.py`: standalone SVG renderer
+- `BoardImport.h`: validated Colonist board file/JSON import API
+- `tools/import_colonist_board.py`: decoded webpage/capture layout adapter
+- `tools/capture_colonist_ws.mjs`: browser WebSocket recorder and MessagePack decoder

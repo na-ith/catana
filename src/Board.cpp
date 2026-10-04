@@ -160,4 +160,54 @@ BoardState makeStandardBoard(std::uint32_t seed) {
     return board;
 }
 
+bool validateInitialBoard(const BoardState& board, std::string* reason) {
+    const auto fail = [&](const char* message) {
+        if (reason) *reason = message;
+        return false;
+    };
+    std::array<unsigned, 6> terrainCounts{}, portCounts{};
+    std::array<unsigned, 13> tokenCounts{};
+    for (const auto& tile : board.hexes) {
+        const auto terrain = static_cast<std::size_t>(tile.terrain);
+        if (terrain >= terrainCounts.size()) return fail("invalid terrain type");
+        ++terrainCounts[terrain];
+        if (tile.terrain == Terrain::Desert) {
+            if (tile.number != 0) return fail("desert must have no number token");
+        } else if (tile.number < 2 || tile.number > 12 || tile.number == 7) {
+            return fail("invalid number token");
+        }
+        ++tokenCounts[tile.number];
+    }
+    if (terrainCounts != std::array<unsigned, 6>{4, 3, 4, 4, 3, 1})
+        return fail("board must have the standard terrain inventory");
+    if (tokenCounts != std::array<unsigned, 13>{1, 0, 1, 2, 2, 2, 2, 0, 2, 2, 2, 2, 1})
+        return fail("board must have the standard number-token inventory");
+    if (board.robberHex.value >= BoardTopology::HexCount ||
+        board.hexes[board.robberHex.value].terrain != Terrain::Desert)
+        return fail("initial robber must be on the desert");
+    const auto& topology = BoardTopology::standard();
+    std::array<bool, BoardTopology::VertexCount> usedVertices{};
+    for (const auto& port : board.ports) {
+        const auto type = static_cast<std::size_t>(port.type);
+        if (type >= portCounts.size()) return fail("invalid port type");
+        ++portCounts[type];
+        if (port.edge.value >= BoardTopology::EdgeCount)
+            return fail("invalid port edge");
+        const auto& edge = topology.edges[port.edge.value];
+        if (edge.hexes[1]) return fail("port must be on a coastal edge");
+        for (auto vertex : edge.vertices) {
+            if (usedVertices[vertex.value]) return fail("ports overlap at a vertex");
+            usedVertices[vertex.value] = true;
+        }
+    }
+    if (portCounts != std::array<unsigned, 6>{4, 1, 1, 1, 1, 1})
+        return fail("board must have four generic and five resource ports");
+    for (const auto& building : board.buildings)
+        if (building) return fail("initial board contains buildings");
+    for (const auto& road : board.roads)
+        if (road) return fail("initial board contains roads");
+    if (reason) reason->clear();
+    return true;
+}
+
 } // namespace catan

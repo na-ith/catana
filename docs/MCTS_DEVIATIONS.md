@@ -36,6 +36,40 @@ nodes and random rollouts. In this win/loss model it cannot improve the acting
 player's win probability over continuing, and exploring it spends visits on a
 known zero-value branch.
 
+### Low-production initial-settlement pruning (heuristic)
+
+During all four initial settlement placements, search omits vertices touching
+at most one resource-producing hex. Desert and absent sea faces do not count;
+two hexes of the same resource count as two producing hexes. The goal is to
+reduce setup branching by excluding locations that usually have poor income.
+This rule does not apply to settlements built later in the game.
+
+This is not a dominance proof: a valuable port, high-probability number,
+resource scarcity, or a blocking/expansion plan can make an excluded placement
+useful. Estimates therefore describe this restricted search policy.
+
+### Robber-target pruning (heuristic)
+
+Search omits robber destinations adjacent to the acting player's buildings
+but no opponent buildings. Once the opponent has more than two public victory
+points (the simulator's friendly-robber cutoff), search additionally omits
+destinations with no opponent settlement or city. Mixed-ownership hexes remain
+available. An opponent's empty hand does not exclude a target: blocking their
+production can still be valuable. While friendly protection is active, legal
+unoccupied hexes remain available, subject to the simulator's targeting rules.
+
+These shortcuts favor immediately disruptive robber placements and reduce
+branching. They can exclude strategic placements, including vacating a more
+valuable self-blocked hex, preserving cooperation on a shared hex, or
+anticipating future construction. They are not proven optimality-preserving.
+
+Both heuristics apply to tree expansion and random rollouts, for either player
+and both belief forests. They use public board information only. Simulator
+legality and the debugging stepper are unchanged. If pruning would leave a
+decision with no continuation, search restores its legal non-resigning actions
+so unusual positions still have a usable tree. Manually selecting an omitted
+action uses the existing fresh-root fallback described below.
+
 ### Zero-yield Monopoly pruning
 
 A `PlayMonopoly` choice is omitted when the opponent has zero cards of the

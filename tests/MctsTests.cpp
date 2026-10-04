@@ -57,6 +57,79 @@ TEST(mcts_reports_every_legal_root_action_with_visits_and_a_probability) {
     }
 }
 
+TEST(mcts_prunes_low_production_setup_but_preserves_simulator_actions) {
+    Game game(42);
+    auto config = fastConfig(1700);
+    config.maxRolloutSteps = 0;
+    MctsSession session(game.state(), config);
+    const auto result = session.run();
+    const auto& topology = BoardTopology::standard();
+    std::optional<Action> pruned;
+    std::size_t kept = 0;
+    for (const auto& action : game.legalActions()) {
+        const auto* settlement = std::get_if<PlaceSettlement>(&action);
+        if (!settlement) continue;
+        unsigned productive = 0;
+        for (const auto hex : topology.vertices[settlement->vertex.value].hexes)
+            if (hex && producedResource(game.state().board.hexes[hex->value].terrain)) ++productive;
+        const bool found = std::any_of(result.actions.begin(), result.actions.end(),
+            [&](const auto& evaluation) { return evaluation.action == action; });
+        CHECK_EQ(found, productive > 1);
+        if (productive <= 1) pruned = action;
+        else ++kept;
+    }
+    CHECK_EQ(result.actions.size(), kept);
+    REQUIRE(pruned.has_value());
+    CHECK(!session.advance(*pruned));
+    accepted(game, *pruned);
+    CHECK_EQ(session.state(), game.state());
+}
+
+TEST(mcts_robber_pruning_handles_friendly_mixed_and_empty_hand_targets) {
+    auto state = blankState(Phase::MoveRobber);
+    const auto& topology = BoardTopology::standard();
+    const auto opponentVertex = topology.hexes[0].vertices[3];
+    state.board.robberHex = HexId{18};
+    placeBuilding(state, VertexId{0}, PlayerId::One);
+    placeBuilding(state, opponentVertex, PlayerId::Two, BuildingType::City);
+    auto config = fastConfig(1702);
+    config.maxRolloutSteps = 0;
+    for (const bool friendly : {true, false}) {
+        auto position = state;
+        if (!friendly) position.awards.largestArmy = PlayerId::Two;
+        CHECK_EQ(publicVictoryPoints(position, PlayerId::Two) > 2, !friendly);
+        MctsSession session(position, config);
+        const auto result = session.run();
+        std::size_t expected = 0;
+        for (const auto& action : Game(position).legalActions()) {
+            const auto* robber = std::get_if<MoveRobber>(&action);
+            if (!robber) continue;
+            bool self = false, other = false;
+            for (const auto vertex : topology.hexes[robber->hex.value].vertices) {
+                const auto& building = position.board.buildings[vertex.value];
+                if (!building) continue;
+                self |= building->owner == PlayerId::One;
+                other |= building->owner == PlayerId::Two;
+            }
+            const bool keep = !(self && !other) && (friendly || other);
+            const bool found = std::any_of(result.actions.begin(), result.actions.end(),
+                [&](const auto& evaluation) { return evaluation.action == action; });
+            CHECK_EQ(found, keep);
+            expected += keep;
+        }
+        CHECK(expected > 0);
+        CHECK_EQ(result.actions.size(), expected);
+    }
+
+    // With no opponent buildings, a public award can disable friendly
+    // protection while every target is excluded; restore legal continuations.
+    state.board.buildings[opponentVertex.value].reset();
+    state.awards.largestArmy = PlayerId::Two;
+    state.awards.longestRoad = PlayerId::Two;
+    MctsSession fallback(state, config);
+    CHECK_EQ(fallback.run().actions.size(), actions<MoveRobber>(Game(state)).size());
+}
+
 TEST(mcts_prunes_monopoly_choices_that_take_no_cards) {
     auto state = blankState();
     state.players[index(PlayerId::One)].developmentCards.cards[index(DevelopmentCard::Monopoly)] = 1;

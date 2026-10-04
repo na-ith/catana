@@ -5,6 +5,7 @@
 #include <array>
 #include <optional>
 #include <random>
+#include <string>
 #include <vector>
 
 namespace catan {
@@ -79,6 +80,8 @@ struct BoardState {
 };
 
 BoardState makeStandardBoard(std::uint32_t seed);
+// Validate a complete, empty standard board before starting initial placement.
+bool validateInitialBoard(const BoardState& board, std::string* reason = nullptr);
 std::optional<Resource> producedResource(Terrain terrain);
 
 } // namespace catan

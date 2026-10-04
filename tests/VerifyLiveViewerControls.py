@@ -25,8 +25,8 @@ def main() -> int:
     specification.loader.exec_module(renderer)
 
     snapshot = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-    if not math.isclose(renderer.BOARD_ROTATION_DEGREES, 60.0):
-        print("visualizer board is not rotated clockwise by 60 degrees", file=sys.stderr)
+    if not math.isclose(renderer.BOARD_ROTATION_DEGREES, -30.0):
+        print("visualizer board is not rotated anticlockwise by 30 degrees", file=sys.stderr)
         return 1
     vertices = {vertex["id"]: vertex for vertex in snapshot["topology"]["vertices"]}
     first_edge = snapshot["topology"]["edges"][0]["vertices"]

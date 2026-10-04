@@ -40,12 +40,20 @@ target_compile_definitions(catan_debug PRIVATE
 )
 
 add_executable(catan_cli src/main.cpp)
-target_link_libraries(catan_cli PRIVATE catan_debug)
+add_library(catan_import src/BoardImport.cpp)
+target_link_libraries(catan_import PUBLIC catan)
+target_compile_options(catan_import PRIVATE -Wall -Wextra -Wpedantic)
+target_compile_definitions(catan_import PRIVATE
+    CATAN_IMPORT_SCRIPT="${CMAKE_CURRENT_SOURCE_DIR}/tools/import_colonist_board.py"
+    CATAN_PYTHON_EXECUTABLE="${CATAN_PYTHON}"
+)
+target_link_libraries(catan_cli PRIVATE catan_debug catan_import)
 
 enable_testing()
 add_executable(catan_tests
     tests/TestMain.cpp
     tests/BoardAndSetupTests.cpp
+    tests/BoardImportTests.cpp
     tests/RankedAndRobberTests.cpp
     tests/EconomyAndBuildingTests.cpp
     tests/DevelopmentAndAwardsTests.cpp
@@ -92,6 +100,10 @@ if(Python3_Interpreter_FOUND)
                 "${CMAKE_CURRENT_SOURCE_DIR}/tools/render_state.py"
                 "${CMAKE_CURRENT_BINARY_DIR}/debug_state_test.json")
     set_tests_properties(live_viewer_controls PROPERTIES DEPENDS debug_snapshot)
+    add_test(NAME colonist_board_import
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/VerifyBoardImport.py"
+                "$<TARGET_FILE:catan_cli>" "${CMAKE_CURRENT_BINARY_DIR}/debug_state_test.json")
+    set_tests_properties(colonist_board_import PROPERTIES DEPENDS debug_snapshot)
 endif()
 if(NODE_EXECUTABLE)
     add_test(NAME colonist_socket_capture_decoder

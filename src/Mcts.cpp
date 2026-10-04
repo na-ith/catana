@@ -100,8 +100,32 @@ bool roadBuildingCanClaimLongestRoad(const GameState& state) {
     return false;
 }
 
-bool isDominatedSearchAction(const GameState& state, const Action& action) {
+bool isPrunedSearchAction(const GameState& state, const Action& action) {
     if (std::holds_alternative<Resign>(action)) return true;
+    if (state.turn.phase == Phase::InitialSettlement) {
+        if (const auto* settlement = std::get_if<PlaceSettlement>(&action)) {
+            unsigned productiveHexes = 0;
+            for (const auto hex : BoardTopology::standard().vertices[settlement->vertex.value].hexes)
+                if (hex && producedResource(state.board.hexes[hex->value].terrain)) ++productiveHexes;
+            return productiveHexes <= 1;
+        }
+    }
+    if (const auto* robber = std::get_if<MoveRobber>(&action)) {
+        const auto player = state.turn.decisionPlayer;
+        const auto victim = opponent(player);
+        bool touchesSelf = false;
+        bool touchesOpponent = false;
+        for (const auto vertex : BoardTopology::standard().hexes[robber->hex.value].vertices) {
+            const auto& building = state.board.buildings[vertex.value];
+            if (!building) continue;
+            touchesSelf |= building->owner == player;
+            touchesOpponent |= building->owner == victim;
+        }
+        if (touchesSelf && !touchesOpponent) return true;
+        // Match the simulator's friendly-robber threshold; an empty opponent
+        // hand still makes blocking their production worthwhile.
+        return publicVictoryPoints(state, victim) > 2 && !touchesOpponent;
+    }
     if (const auto* monopoly = std::get_if<PlayMonopoly>(&action)) {
         const auto victim = opponent(state.turn.decisionPlayer);
         return state.players[index(victim)].resources[index(monopoly->resource)] == 0;
@@ -129,11 +153,14 @@ void initialize(Node& node) {
             node.edges.push_back({outcome.action, outcome.probability, nullptr, true});
     } else {
         const auto legal = game.legalActions();
+        const bool hasPreferredAction = std::any_of(legal.begin(), legal.end(),
+            [&](const Action& action) { return !isPrunedSearchAction(node.state, action); });
         node.edges.reserve(legal.size());
         for (const auto& action : legal) {
-            // Keep dominated operations available to the simulator while
-            // excluding them from tree growth. See docs/MCTS_DEVIATIONS.md.
-            if (isDominatedSearchAction(node.state, action)) continue;
+            // Restore legal non-resigning choices if heuristics remove every
+            // continuation. See docs/MCTS_DEVIATIONS.md.
+            if (std::holds_alternative<Resign>(action) ||
+                (hasPreferredAction && isPrunedSearchAction(node.state, action))) continue;
             node.edges.push_back({action, std::nullopt, nullptr, true});
         }
     }
@@ -196,7 +223,11 @@ Action rolloutAction(Game& game, Random& random) {
     std::vector<std::size_t> candidates;
     candidates.reserve(legal.size());
     for (std::size_t i = 0; i < legal.size(); ++i)
-        if (!isDominatedSearchAction(game.state(), legal[i])) candidates.push_back(i);
+        if (!isPrunedSearchAction(game.state(), legal[i])) candidates.push_back(i);
+    if (candidates.empty()) {
+        for (std::size_t i = 0; i < legal.size(); ++i)
+            if (!std::holds_alternative<Resign>(legal[i])) candidates.push_back(i);
+    }
     if (candidates.empty()) return legal.front();
     std::uniform_int_distribution<std::size_t> choose(0, candidates.size() - 1);
     return legal[candidates[choose(random)]];
