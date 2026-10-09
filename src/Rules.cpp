@@ -61,18 +61,24 @@ bool canBuildSettlement(const GameState& state, PlayerId player, VertexId vertex
 
 bool canBuildRoad(const GameState& state, PlayerId player, EdgeId edge) {
     if (edge.value >= BoardTopology::EdgeCount || state.board.roads[edge.value]) return false;
-    if (roadCount(state, player) >= 15) return false;
     const auto& topology = BoardTopology::standard();
+    bool connected = false;
     for (VertexId vertex : topology.edges[edge.value].vertices) {
         const auto& building = state.board.buildings[vertex.value];
-        if (building && building->owner == player) return true;
+        if (building && building->owner == player) {
+            connected = true;
+            break;
+        }
         if (building && building->owner != player) continue;
         for (const auto adjacent : topology.vertices[vertex.value].edges) {
-            if (adjacent && state.board.roads[adjacent->value] && state.board.roads[adjacent->value]->owner == player)
-                return true;
+            if (adjacent && state.board.roads[adjacent->value] && state.board.roads[adjacent->value]->owner == player) {
+                connected = true;
+                break;
+            }
         }
+        if (connected) break;
     }
-    return false;
+    return connected && roadCount(state, player) < 15;
 }
 
 bool canBuildCity(const GameState& state, PlayerId player, VertexId vertex) {
