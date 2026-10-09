@@ -1,0 +1,2 @@
+/usr/bin/ar qc libcatan_mcts.a CMakeFiles/catan_mcts.dir/src/Belief.cpp.o CMakeFiles/catan_mcts.dir/src/InformationState.cpp.o CMakeFiles/catan_mcts.dir/src/InformationMcts.cpp.o CMakeFiles/catan_mcts.dir/src/Mcts.cpp.o CMakeFiles/catan_mcts.dir/src/TradePolicy.cpp.o
+/usr/bin/ranlib libcatan_mcts.a

@@ -1,0 +1,2 @@
+/usr/bin/ar qc libcatan_import.a CMakeFiles/catan_import.dir/src/BoardImport.cpp.o
+/usr/bin/ranlib libcatan_import.a
