@@ -1,7 +1,7 @@
 /target
 .cache
 /build
-/catan-release-build
+/catan-build-release
 .vscode
 __pycache__/
 /debug_state.svg
