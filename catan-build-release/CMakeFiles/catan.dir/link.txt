@@ -1,2 +1,0 @@
-/usr/bin/ar qc libcatan.a CMakeFiles/catan.dir/src/Board.cpp.o CMakeFiles/catan.dir/src/Game.cpp.o CMakeFiles/catan.dir/src/Model.cpp.o CMakeFiles/catan.dir/src/Rules.cpp.o
-/usr/bin/ranlib libcatan.a
