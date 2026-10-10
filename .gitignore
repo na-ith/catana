@@ -8,3 +8,4 @@ __pycache__/
 /debug_state.svg
 /debug_state.json
 .aider*
+.nvimlog
