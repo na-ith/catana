@@ -100,8 +100,7 @@ function buildBoard() {
   }
   for (const tile of layout.hexes) {
     const [x,y] = centres.get(tile.id);
-    base.append(svg('polygon',{points:hexPoints(tile.id),fill:terrainColours[tile.terrain],class:'terrain'}),
-      svg('text',{x,y:y-33,'text-anchor':'middle',class:'hex-name'},tile.terrain));
+    base.append(svg('polygon',{points:hexPoints(tile.id),fill:terrainColours[tile.terrain],class:'terrain'}));
     if (tile.number) {
       base.append(svg('circle',{cx:x,cy:y,r:24,class:'token'}),
         svg('text',{x,y:y+5,'text-anchor':'middle',class:'number'+([6,8].includes(tile.number)?' hot':'')},tile.number),
