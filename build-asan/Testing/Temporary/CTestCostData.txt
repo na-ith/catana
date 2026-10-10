@@ -1,9 +1,0 @@
-catan_tests 10 0.295912
-full_game_system 10 0.00934251
-debug_snapshot 10 0.0511799
-debug_renderer 10 0.0111187
-debug_renderer_ports 10 0.00714237
-debug_renderer_mcts 10 0.00696053
-stepper_random_chance_option 7 0.078974
-live_viewer_controls 5 0.0227745
----

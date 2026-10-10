@@ -17,7 +17,7 @@ At a player decision, enter `mcts [iterations]` to print the estimated win perce
 
 Search groups consecutive bank trades into a `trade batch` and keeps one
 sequence per resulting hand. Select a batch from the CLI's MCTS results or
-click its viewer analysis row to apply all exchanges; one rewind undoes the
+select its viewer analysis row and commit to apply all exchanges; one rewind undoes the
 whole batch. Ordinary single trades remain available for manual stepping.
 Build/trade orderings are removed only when replay proves them equivalent,
 preserving new ports and bank shortages. Development-card purchases and plays
@@ -44,6 +44,31 @@ for (const auto& option : result.actions) {
 if (result.bestAction) game.transform(*result.bestAction);
 ```
 
+### Benchmark MCTS
+
+Run the optimized benchmark suite from the repository root:
+
+```sh
+python3 tools/benchmark_mcts.py
+```
+
+The runner builds a separate Release benchmark target under `build/mcts-benchmark`
+and reports median search time and iterations per second across repeated runs.
+It covers initial settlement and road placement, a dice chance node, early and
+midgame decisions, a resource-rich trading position, robber decisions, and
+simultaneous discards, plus an information-state search with an unknown
+opponent development card. Scenario setup is outside the timed search. Save raw
+measurements with `--csv`:
+
+```sh
+python3 tools/benchmark_mcts.py --iterations 5000 --repeats 5 --csv results.csv
+```
+
+Use `--scenario NAME` to run one case, `--rollout-steps N` to change the rollout
+limit, `--seed N` to reproduce board fixtures, or `--no-build` to reuse the
+existing benchmark binary. Run the same options before and after a code change
+for comparable results.
+
 `MctsEngine` searches the complete state passed to it. The live stepper layers player-specific development-card beliefs over that core: each player knows their own cards and searches weighted determinizations of the opponent's possible cards and the remaining deck. Opponent decision nodes minimize the searching player's result, while dice, development draws, and steals are sampled from `Game::chanceOutcomes()`. Rollouts that do not finish within the configured depth use a bounded position evaluation, so reported percentages are estimates rather than exact solved probabilities.
 
 Intentional changes from minimal UCT—including action pruning, sibling-state folding, persistent trees, parallel workers, rejected optimisations, and their correctness assumptions—are maintained in [`docs/MCTS_DEVIATIONS.md`](docs/MCTS_DEVIATIONS.md).
@@ -60,11 +85,52 @@ Start the stepper with the visualizer flag:
 ./build/catan_cli --seed 42 --visualizer --mcts-threads 8
 ```
 
-This starts a Python localhost viewer and opens it in a new browser window. The C++ process atomically publishes a new omniscient snapshot after every accepted action, and the viewer redraws automatically. The local viewer server is stopped when the stepper exits. If the browser cannot be opened automatically, the terminal prints the local URL to open manually.
+This starts a Python localhost viewer and opens it in a new browser window. Select **Settlement**, **Road**, **City**, or **Robber** to highlight legal board targets. Hover or focus a target to preview the move, then click or press Enter to commit it. Setup and mandatory robber/road phases automatically select their tool. **Board IDs** shows engine IDs when needed. The local viewer server stops when the stepper exits; if the browser cannot open automatically, the terminal prints the local URL.
+
+The move panel covers dice totals, development-card purchases and plays, draws,
+steals, Year of Plenty, Monopoly, end turn, and resignation. Select an action
+and click **Commit move**. If only one normal move is available (such as rolling
+the dice or ending the turn), selecting it applies it immediately. Resignation
+always requires confirmation. Bank trading highlights legal receiving resources
+after you select what to give, showing the current port exchange rate. Discards
+use resource counters and enable selection only for a valid complete discard.
+In perspective mode these controls record observed moves and outcomes.
+
+The compact **Game events** panel records confirmed moves beside the board.
+Each dice result starts a fresh **This turn** history and shows how much of each
+resource each player received. Subsequent moves append to that history; new
+entries are highlighted briefly and remain available until the next dice result.
+Rewind restores the previous history along with the game. Hidden opponent
+development-card draws remain unknown in perspective mode.
 
 When the visualizer is enabled, each player gets an independent fixed-perspective, root-parallel belief tree. Both run automatically while the CLI waits for input, and the **P1 tree** and **P2 tree** switches independently pause or resume their calculation. `--mcts-threads N` sets the workers per enabled player tree. A private development-card draw advances the owner's workers through the observed card while the other player's workers sample the hidden outcome; incompatible workers are rebuilt from the exact Bayesian posterior. Public actions retain compatible subtrees in both forests.
 
-The analysis panel shows the acting player's belief tree, refreshes as work completes, ranks every current action by estimated win percentage, retains its original CLI index, shows combined visits, worker count, explored depth, and unique root nodes, and highlights the current recommendation. Hover an analysis row to highlight its corresponding board or state element; click it to apply that action. At chance nodes, **random weighted outcome** samples a concrete result without adding a synthetic MCTS branch. **Rewind one action** restores the complete game, debugging RNG, and both development-card beliefs. Stale clicks from older positions are ignored. Rewinding starts fresh search trees at the restored beliefs because discarded ancestors are not retained.
+The analysis panel shows the acting player's belief tree, win estimates,
+visits, worker count, explored depth, and unique root nodes. Hover a row to
+highlight its board or hand targets; select it and click **Commit move** to
+apply it, including atomic trade batches. Scores refresh without replacing the
+board or input controls. Ranking holds while the list has pointer or keyboard
+focus. Large lists initially show 80 moves; **Show more moves** reveals the rest.
+**Sample random outcome** samples weighted chance results for debugging.
+**Rewind** restores the complete game, debugging RNG, and both development-card
+beliefs. Stale clicks receive an explicit rejection. Rewinding starts fresh
+search trees because discarded ancestors are not retained.
+
+The live boundary publishes immutable layout once, position and structured
+legal moves when input changes, and compact MCTS scores separately. Extra search
+moves such as trade batches get a catalog update only when first published.
+The Python server caches these publications; `/updates` returns only components
+whose revisions differ from the browser's. The browser builds SVG geometry once
+and updates pieces, controls, and keyed analysis rows independently. Commands
+submit a typed move's stable ID and position version, and wait for a C++ engine
+acknowledgement. The file transport and Python standard-library server need no
+additional runtime dependencies. `/state.json` and `/image.svg` still assemble
+full debug exports on demand; legacy index commands remain supported.
+
+If the page reports an older viewer interface, rebuild the executable you are
+launching and restart the stepper. Refreshing the browser does not update an
+already running C++ process. For the default build, use
+`cmake --build build --target catan_cli`, then launch `./build/catan_cli` again.
 
 ### Play from one player's information
 
@@ -77,17 +143,17 @@ that player's private development cards available:
 ```
 
 Only the selected player's forest is created and run. The opponent's tree
-switch is disabled. The viewer's move selector lists all legal transformations
+switch is disabled. The board and move controls expose legal transformations
 even when no MCTS analysis is available. On the opponent's turn, select what
-they actually did and click **Record opponent move** (or enter its number in
+they actually did and click **Record move** (or enter its number in
 the CLI). Selecting **buy development card** automatically resolves an
 unknown draw into a Bayesian distribution; it never asks for or invents an
 authoritative opponent card. A subsequent observed card play removes
 incompatible possibilities, while other unplayed cards can remain uncertain.
 On your own purchase, select the card you actually received at the development
 draw step. Enter public dice and steal outcomes as observed, too.
-The viewer offers **Record outcome** for these choices and **Random (debug)**
-for sampling a chance outcome. The perspective and acting player are shown
+The viewer lets you select and commit observed outcomes, and offers **Sample
+random outcome** for debugging. The perspective and acting player are shown
 above the board; you can still click MCTS recommendations on your own turn.
 
 Resources are known for both players. The CLI, JSON exports and viewer mask
@@ -338,6 +404,7 @@ The simulator stores the authoritative omniscient state. `DevelopmentBelief` pro
 - `Belief.h`: player-specific Bayesian development-hand/deck hypotheses
 - `Debug.h`: optional JSON snapshot and Python-renderer adapter
 - `tools/render_state.py`: standalone SVG renderer
+- `tools/viewer.html`, `viewer.js`, `viewer.css`: interactive live board and move controls
 - `BoardImport.h`: validated Colonist board file/JSON import API
 - `tools/import_colonist_board.py`: decoded webpage/capture layout adapter
 - `tools/capture_colonist_ws.mjs`: browser WebSocket recorder and MessagePack decoder

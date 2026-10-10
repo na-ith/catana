@@ -1,1 +1,0 @@
-/usr/bin/c++ -fsanitize=address,undefined -g -Wl,-search_paths_first -Wl,-headerpad_max_install_names -fsanitize=address,undefined CMakeFiles/catan_snapshot.dir/tests/WriteSnapshot.cpp.o -o catan_snapshot  libcatan_debug.a libcatan_mcts.a libcatan.a

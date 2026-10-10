@@ -1,1 +1,0 @@
-/usr/bin/c++ -fsanitize=address,undefined -g -Wl,-search_paths_first -Wl,-headerpad_max_install_names -fsanitize=address,undefined CMakeFiles/catan_cli.dir/src/main.cpp.o -o catan_cli  libcatan_debug.a libcatan_mcts.a libcatan.a

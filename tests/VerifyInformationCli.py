@@ -8,6 +8,7 @@ import sys
 import tempfile
 import time
 import urllib.request
+import urllib.error
 from pathlib import Path
 
 
@@ -136,8 +137,13 @@ def main():
                                       "player": 2 - observer, "enabled": True}).encode()
                 request = urllib.request.Request(url + "command", data=payload,
                                                  headers={"Content-Type": "application/json"})
-                with urllib.request.urlopen(request, timeout=3) as response:
-                    assert response.status == 200
+                try:
+                    urllib.request.urlopen(request, timeout=3)
+                    raise AssertionError("unavailable opponent tree was acknowledged as accepted")
+                except urllib.error.HTTPError as response:
+                    assert response.code == 409
+                    reply = json.load(response)
+                    assert not reply["accepted"] and "opponent tree is unavailable" in reply["message"]
                 assert "opponent tree is unavailable" in stepper.read()
                 # Manual UI actions must work on opponent turns without an
                 # MCTS action list, and preserve the CLI's transformation IDs.

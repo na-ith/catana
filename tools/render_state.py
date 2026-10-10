@@ -20,6 +20,7 @@ import time
 import webbrowser
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
 
 WIDTH = 1280
@@ -89,7 +90,12 @@ def write_viewer_command(command_file: Path, command: dict[str, Any]) -> None:
     position = int(command["position_version"])
     if position < 0:
         raise ValueError("invalid position version")
-    if command_type in ("action", "transform"):
+    if command_type == "move":
+        move_id = command["move_id"]
+        if not isinstance(move_id, str) or not move_id or len(move_id) > 3000:
+            raise ValueError("invalid move ID")
+        payload = f"move {position} {json.dumps(move_id, ensure_ascii=True)}\n"
+    elif command_type in ("action", "transform"):
         action_index = int(command["action_index"])
         if action_index < 0:
             raise ValueError("invalid action index")
@@ -111,6 +117,11 @@ def write_viewer_command(command_file: Path, command: dict[str, Any]) -> None:
         payload = f"tree {position} {player} {int(enabled)}\n"
     else:
         raise ValueError("unknown command type")
+    if "request_id" in command:
+        request_id = int(command["request_id"])
+        if request_id <= 0:
+            raise ValueError("invalid request ID")
+        payload = payload.rstrip("\n") + f" request {request_id}\n"
     next_command = Path(str(command_file) + ".next")
     next_command.write_text(payload, encoding="utf-8")
     os.replace(next_command, command_file)
@@ -517,6 +528,85 @@ def render(data: dict[str, Any]) -> str:
     return "\n".join(svg)
 
 
+class LiveSnapshots:
+    """Cache independently published immutable layout, position, and search data.
+
+    Files are read only when their atomic publication changes. The normal live
+    endpoint sends only changed components; full debug snapshots remain available
+    on demand for existing integrations and image exports.
+    """
+
+    def __init__(self, snapshot: Path):
+        self.snapshot = snapshot
+        self.lock = threading.Lock()
+        self.cache: dict[str, tuple[str, dict[str, Any]]] = {}
+
+    def read(self, component: str) -> tuple[str, dict[str, Any]]:
+        path = self.snapshot if component == "position" else Path(str(self.snapshot) + "." + component)
+        for _ in range(3):
+            stat = path.stat()
+            revision = f"{stat.st_ino}-{stat.st_mtime_ns}-{stat.st_size}"
+            cached = self.cache.get(component)
+            if cached and cached[0] == revision:
+                return cached
+            payload = path.read_bytes()
+            after = path.stat()
+            if (stat.st_ino, stat.st_mtime_ns, stat.st_size) != (after.st_ino, after.st_mtime_ns, after.st_size):
+                continue
+            value = (revision, json.loads(payload))
+            self.cache[component] = value
+            return value
+        raise OSError("position is being published; retry shortly")
+
+    def updates(self, requested: dict[str, list[str]]) -> dict[str, Any]:
+        with self.lock:
+            revision, position = self.read("position")
+            result: dict[str, Any] = {"revisions": {"position": revision}}
+            if requested.get("position", [""])[0] != revision:
+                result["position"] = position
+            version = (position.get("controls") or {}).get("position_version", 0)
+            for component in ("layout", "catalog", "analysis"):
+                try:
+                    component_revision, value = self.read(component)
+                except FileNotFoundError:
+                    # Also support serving an exported, self-contained snapshot.
+                    component_revision = revision
+                    if component == "layout":
+                        value = {"topology": position["topology"], "hexes": position["board"]["hexes"],
+                                 "ports": position["board"]["ports"]}
+                    elif component == "catalog":
+                        value = {"position_version": version, "moves": (position.get("mcts") or {}).get("actions", [])}
+                    else:
+                        value = {"position_version": version, "mcts": position.get("mcts")}
+                if component != "layout" and value["position_version"] != version:
+                    # A position and its search can arrive in either order. Never
+                    # attach scores or IDs from a different input position.
+                    continue
+                result["revisions"][component] = component_revision
+                if requested.get(component, [""])[0] != component_revision:
+                    result[component] = value
+            return result
+
+    def full_state(self) -> dict[str, Any]:
+        data = self.updates({})
+        state = dict(data["position"])
+        state["schema"] = "catan-debug-state-v1"
+        layout = data["layout"]
+        state["topology"] = layout["topology"]
+        state["board"] = {**state["board"], "ports": layout["ports"], "hexes": [
+            {**tile, "robber": state["board"].get("robber_hex", -1) == tile["id"]}
+            for tile in layout["hexes"]
+        ]} if "robber_hex" in state["board"] else state["board"]
+        analysis = data.get("analysis", {}).get("mcts")
+        if analysis:
+            moves = {move["id"]: move for move in state["transformations"] if "id" in move}
+            moves.update({move["id"]: move for move in data.get("catalog", {}).get("moves", []) if "id" in move})
+            analysis = {**analysis, "actions": [{**moves.get(action.get("id"), {}), **action}
+                                                for action in analysis["actions"]]}
+        state["mcts"] = analysis
+        return state
+
+
 def serve_live(
     snapshot: Path,
     ready_file: Path | None,
@@ -527,185 +617,10 @@ def serve_live(
 ) -> int:
     """Serve a live SVG view of an atomically replaced state snapshot."""
 
-    page = b"""<!doctype html>
-<html><head><meta charset="utf-8"><title>Catan live state</title>
-<style>
-html,body { margin:0; min-height:100%; background:#25292d; font-family:system-ui,sans-serif; }
-#bar { color:#e9ecef; padding:8px 14px; font-size:13px; display:flex; flex-wrap:wrap; align-items:center; gap:18px; }
-#moves { color:#e9ecef; padding:4px 14px 12px; display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
-#move { flex:1; min-width:180px; max-width:650px; padding:6px; background:#fffdf8; border-radius:5px; }
-#moves button { padding:6px 12px; border:1px solid #929da7; border-radius:5px; cursor:pointer; }
-#moves button:disabled { cursor:not-allowed; opacity:.45; }
-#hint { width:100%; color:#c0cbd5; font-size:13px; }
-#mode { font-weight:600; }
-#status { color:#9fd49f; }
-#rewind { border:1px solid #929da7; border-radius:5px; background:#3b454e; color:#fff; padding:3px 10px; cursor:pointer; }
-#rewind:disabled { cursor:not-allowed; opacity:.45; }
-.tree-toggle { display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none; }
-.tree-toggle input { accent-color:#6fb879; }
-#state { display:block; width:min(1900px, calc(100vw - 20px)); height:auto; margin:0 auto 10px; box-shadow:0 3px 22px #111; }
-#state svg { display:block; width:100%; height:auto; }
-</style></head><body>
-<div id="bar"><strong>Catan live state</strong><button id="rewind" disabled>&#8630; Rewind one action</button><label class="tree-toggle"><input id="tree-p1" type="checkbox" checked>P1 tree</label><label class="tree-toggle"><input id="tree-p2" type="checkbox" checked>P2 tree</label><span id="status">connected</span></div>
-<div id="moves"><span id="mode">Loading state...</span><select id="move" aria-label="Available moves" disabled></select><button id="apply-move" disabled>Apply move</button><button id="random" disabled>Random (debug)</button><button id="winner-p1" hidden>Record P1 victory</button><button id="winner-p2" hidden>Record P2 victory</button><span id="hint"></span></div>
-<div id="state" aria-label="Catan game state"></div>
-<script>
-let version = "";
-const state = document.getElementById('state');
-const rewind = document.getElementById('rewind');
-const treeToggles = [document.getElementById('tree-p1'), document.getElementById('tree-p2')];
-const moveSelect = document.getElementById('move');
-const applyMove = document.getElementById('apply-move');
-const randomMove = document.getElementById('random');
-const winnerButtons = [document.getElementById('winner-p1'), document.getElementById('winner-p2')];
-let hoveredActionIndex = null;
-let positionVersion = 0;
-let pendingPosition = null;
-
-function actionRow(index) {
-  if (!state.firstElementChild) return null;
-  return Array.from(state.querySelectorAll('.mcts-action'))
-    .find(row => row.dataset.actionIndex === String(index)) || null;
-}
-
-function clearHighlight() {
-  state.querySelectorAll('.is-highlighted, .is-hovered').forEach(element => {
-    element.classList.remove('is-highlighted', 'is-hovered');
-  });
-}
-
-function highlightAction(row) {
-  clearHighlight();
-  if (!row) {
-    hoveredActionIndex = null;
-    return;
-  }
-  hoveredActionIndex = row.dataset.actionIndex;
-  row.classList.add('is-hovered');
-  const targets = (row.dataset.highlightTargets || '').split(/\\s+/).filter(Boolean);
-  state.querySelectorAll('[data-highlight-id]').forEach(element => {
-    if (targets.includes(element.dataset.highlightId)) element.classList.add('is-highlighted');
-  });
-}
-
-state.addEventListener('mouseover', event => {
-  const element = event.target instanceof Element ? event.target : event.target.parentElement;
-  const row = element && element.closest('.mcts-action');
-  const related = event.relatedTarget;
-  if (row && (!(related instanceof Node) || !row.contains(related))) highlightAction(row);
-});
-state.addEventListener('mouseout', event => {
-  const element = event.target instanceof Element ? event.target : event.target.parentElement;
-  const row = element && element.closest('.mcts-action');
-  const related = event.relatedTarget;
-  if (row && (!(related instanceof Node) || !row.contains(related))) highlightAction(null);
-});
-
-async function sendCommand(type, actionIndex = null, extra = {}) {
-  if (pendingPosition !== null) return;
-  pendingPosition = positionVersion;
-  rewind.disabled = true;
-  applyMove.disabled = true;
-  randomMove.disabled = true;
-  document.getElementById('status').textContent = 'sending ' + type + '...';
-  try {
-    const response = await fetch('/command', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({type, position_version: positionVersion, action_index: actionIndex, ...extra}),
-    });
-    if (!response.ok) throw new Error(await response.text());
-    if (type === 'tree') pendingPosition = null;
-    else window.setTimeout(() => {
-        if (pendingPosition === positionVersion) pendingPosition = null;
-      }, 2000);
-  } catch (error) {
-    pendingPosition = null;
-    document.getElementById('status').textContent = 'command failed: ' + error;
-  }
-}
-
-state.addEventListener('click', event => {
-  const element = event.target instanceof Element ? event.target : event.target.parentElement;
-  const row = element && element.closest('.mcts-action');
-  const randomRow = element && element.closest('.chance-random-action');
-  if (row) sendCommand('action', Number(row.dataset.actionIndex));
-  else if (randomRow) sendCommand('random');
-});
-rewind.addEventListener('click', () => sendCommand('rewind'));
-applyMove.addEventListener('click', () => sendCommand('transform', Number(moveSelect.value)));
-randomMove.addEventListener('click', () => sendCommand('random'));
-winnerButtons.forEach((button, player) => button.addEventListener('click', () => sendCommand('winner', null, {player})));
-treeToggles.forEach((toggle, player) => {
-  toggle.addEventListener('change', () => sendCommand('tree', null, {player, enabled: toggle.checked}));
-});
-
-async function refresh() {
-  try {
-    const response = await fetch('/version', {cache:'no-store'});
-    const next = await response.text();
-    if (next !== version) {
-      const [image, snapshot] = await Promise.all([
-        fetch('/image.svg?v=' + encodeURIComponent(next), {cache:'no-store'}),
-        fetch('/state.json?v=' + encodeURIComponent(next), {cache:'no-store'}),
-      ]);
-      if (!image.ok || !snapshot.ok) throw new Error('state unavailable');
-      const game = await snapshot.json();
-      state.innerHTML = await image.text();
-      const svg = state.firstElementChild;
-      const nextPosition = svg ? Number(svg.dataset.positionVersion || 0) : 0;
-      if (nextPosition !== Number(game.controls?.position_version || 0)) return;
-      version = next;
-      if (pendingPosition !== null && nextPosition !== pendingPosition) pendingPosition = null;
-      positionVersion = nextPosition;
-      const choices = game.transformations || [];
-      const selected = moveSelect.value;
-      moveSelect.replaceChildren(...choices.map(action => {
-        const option = document.createElement('option');
-        option.value = String(action.index);
-        const probability = action.chance_probability === null ? '' : ' (' + (action.chance_probability * 100).toFixed(1) + '%)';
-        option.textContent = action.index + ': ' + action.description + probability;
-        return option;
-      }));
-      if (choices.some(action => String(action.index) === selected)) moveSelect.value = selected;
-      moveSelect.disabled = choices.length === 0;
-      const observer = game.information?.observer;
-      const acting = game.controls.discard_input_player ?? game.turn.decision_player;
-      const opponentMove = observer !== undefined && observer !== acting;
-      const isChance = choices.some(action => action.chance_probability !== null);
-      const hiddenDraw = choices.some(action => action.description === 'draw unknown development card');
-      document.getElementById('mode').textContent = (observer === undefined ? 'Full game' : 'P' + (observer + 1) + ' perspective') + ' | P' + (acting + 1) + ' to move';
-      applyMove.textContent = game.turn.phase === 'discarding' ? 'Record discard choice' : isChance ? 'Record outcome' : opponentMove ? 'Record opponent move' : 'Apply move';
-      document.getElementById('hint').textContent = game.turn.phase === 'discarding'
-        ? 'Record P' + (acting + 1) + "'s discard. Both hands remain unchanged until all required choices are recorded. Rewind cancels pending choices."
-        : opponentMove
-        ? 'Select what the opponent did. Development-card purchases stay unknown.'
-        : game.turn.phase === 'development draw' && observer !== undefined
-          ? 'Select the development card you actually received.'
-          : 'Choose any legal move here, or click an MCTS recommendation below.';
-      applyMove.dataset.available = String(choices.length > 0);
-      randomMove.dataset.available = String(isChance && !hiddenDraw);
-      winnerButtons.forEach((button, player) => { button.hidden = !(game.possible_winners || []).includes(player); });
-      rewind.disabled = pendingPosition !== null || !svg || svg.dataset.canRewind !== 'true';
-      if (svg) {
-        treeToggles[0].checked = svg.dataset.treeRunningP1 !== 'false';
-        treeToggles[1].checked = svg.dataset.treeRunningP2 !== 'false';
-        treeToggles.forEach((toggle, player) => {
-          toggle.disabled = svg.dataset.observer !== '' && Number(svg.dataset.observer) !== player;
-        });
-      }
-      if (hoveredActionIndex !== null) highlightAction(actionRow(hoveredActionIndex));
-    }
-    applyMove.disabled = pendingPosition !== null || applyMove.dataset.available !== 'true';
-    randomMove.disabled = pendingPosition !== null || randomMove.dataset.available !== 'true';
-    document.getElementById('status').textContent = 'connected';
-  } catch (_) {
-    document.getElementById('status').textContent = 'viewer disconnected';
-  }
-}
-setInterval(refresh, 150);
-refresh();
-</script></body></html>"""
+    assets = Path(__file__).resolve().parent
+    page = (assets / "viewer.html").read_bytes()
+    snapshots = LiveSnapshots(snapshot)
+    request_counter = time.monotonic_ns() // 1000
 
     command_lock = threading.Lock()
 
@@ -719,36 +634,38 @@ refresh();
             self.wfile.write(payload)
 
         def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
-            path = self.path.split("?", 1)[0]
+            parsed = urlsplit(self.path)
+            path = parsed.path
             if path == "/":
                 self.send_bytes(page, "text/html; charset=utf-8")
                 return
-            if path == "/version":
-                try:
-                    stat = snapshot.stat()
-                    payload = f"{stat.st_mtime_ns}-{stat.st_size}".encode()
-                    self.send_bytes(payload, "text/plain; charset=utf-8")
-                except OSError as error:
-                    self.send_bytes(str(error).encode(), "text/plain; charset=utf-8", 503)
+            if path in ("/viewer.js", "/viewer.css"):
+                content_type = "text/javascript" if path.endswith(".js") else "text/css"
+                self.send_bytes((assets / path[1:]).read_bytes(), content_type + "; charset=utf-8")
                 return
-            if path == "/state.json":
-                try:
-                    self.send_bytes(snapshot.read_bytes(), "application/json")
-                except OSError as error:
-                    self.send_bytes(str(error).encode(), "text/plain; charset=utf-8", 503)
-                return
-            if path == "/image.svg":
-                try:
-                    state = json.loads(snapshot.read_text(encoding="utf-8"))
-                    payload = render(state).encode("utf-8")
-                    self.send_bytes(payload, "image/svg+xml; charset=utf-8")
-                except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
-                    self.send_bytes(f"renderer error: {error}".encode(), "text/plain; charset=utf-8", 503)
+            try:
+                if path == "/updates":
+                    updates = snapshots.updates(parse_qs(parsed.query))
+                    self.send_bytes(json.dumps(updates, separators=(",", ":")).encode(), "application/json")
+                    return
+                if path == "/version":
+                    updates = snapshots.updates({})
+                    self.send_bytes(json.dumps(updates["revisions"]).encode(), "text/plain; charset=utf-8")
+                    return
+                if path == "/state.json":
+                    self.send_bytes(json.dumps(snapshots.full_state()).encode(), "application/json")
+                    return
+                if path == "/image.svg":
+                    self.send_bytes(render(snapshots.full_state()).encode(), "image/svg+xml; charset=utf-8")
+                    return
+            except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
+                self.send_bytes(str(error).encode(), "text/plain; charset=utf-8", 503)
                 return
             self.send_bytes(b"not found", "text/plain; charset=utf-8", 404)
 
         def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
-            if self.path.split("?", 1)[0] != "/command" or command_file is None:
+            nonlocal request_counter
+            if urlsplit(self.path).path != "/command" or command_file is None:
                 self.send_bytes(b"not found", "text/plain; charset=utf-8", 404)
                 return
             try:
@@ -757,8 +674,26 @@ refresh();
                     raise ValueError("invalid command size")
                 command = json.loads(self.rfile.read(length).decode("utf-8"))
                 with command_lock:
+                    if command_file.exists():
+                        self.send_bytes(b"A command is still pending.", "text/plain; charset=utf-8", 409)
+                        return
+                    request_counter += 1
+                    command["request_id"] = request_counter
                     write_viewer_command(command_file, command)
-                self.send_bytes(b'{"accepted":true}', "application/json")
+                    reply_file = Path(str(command_file) + ".reply")
+                    deadline = time.monotonic() + 15
+                    while time.monotonic() < deadline:
+                        try:
+                            reply = json.loads(reply_file.read_text(encoding="utf-8"))
+                            if reply.get("request_id") == request_counter:
+                                status = 200 if reply["accepted"] else 409
+                                self.send_bytes(json.dumps(reply).encode(), "application/json", status)
+                                return
+                        except (OSError, json.JSONDecodeError):
+                            pass
+                        time.sleep(0.01)
+                    self.send_bytes(b"Engine acknowledgement timed out; the move may still be pending.",
+                                    "text/plain; charset=utf-8", 504)
             except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
                 self.send_bytes(str(error).encode(), "text/plain; charset=utf-8", 400)
 

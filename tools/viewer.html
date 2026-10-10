@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Catan · live board</title>
+  <link rel="stylesheet" href="/viewer.css">
+  <script src="/viewer.js" defer></script>
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="brand-mark">⬡</span><div><strong>Catan</strong><small>Live board</small></div></div>
+    <div id="turn-summary" data-highlight-id="turn">Connecting to game…</div>
+    <div class="header-controls"><button id="rewind" disabled>↶ Rewind</button><label><input id="debug-ids" type="checkbox"> Board IDs</label></div>
+  </header>
+  <main>
+    <section class="board-column" aria-label="Board and player hands">
+      <div class="board-card">
+        <div class="board-heading"><span id="perspective"></span><span id="phase" class="phase"></span></div>
+        <svg id="board" viewBox="0 0 860 800" role="group" aria-label="Interactive Catan board"></svg>
+        <div id="tools" class="tools" role="group" aria-label="Build tools"></div>
+        <p id="board-hint" class="board-hint">Loading board…</p>
+      </div>
+      <div id="players" class="players"></div>
+      <details class="details"><summary>Bank, awards and balanced dice</summary><div id="game-details"></div></details>
+    </section>
+    <aside>
+      <section class="panel actions-panel" aria-label="Move controls">
+        <div class="panel-heading"><h1 id="action-title">Your move</h1><span id="actor" class="badge"></span></div>
+        <p id="action-hint" class="muted"></p>
+        <div id="actions"></div>
+        <div id="selection" class="selection" hidden>
+          <strong id="selected-label"></strong><p id="selected-detail" class="muted"></p>
+          <button id="commit" class="primary">Commit move</button><button id="cancel">Cancel selection</button>
+        </div>
+        <div id="status" role="status" aria-live="polite">Connecting…</div>
+      </section>
+      <section class="panel events-panel" aria-label="Turn events">
+        <div class="panel-heading"><h2 id="events-title">Game events</h2><span class="muted">Since last roll</span></div>
+        <p id="events-empty" class="muted">Moves and dice results will appear here.</p>
+        <ol id="events" class="event-list" role="log" aria-live="polite" aria-relevant="additions" aria-label="Events since last dice roll"></ol>
+      </section>
+      <section class="panel analysis-panel" aria-label="MCTS analysis">
+        <div class="panel-heading"><h2>Analysis</h2><div class="tree-controls"><label><input id="tree-p1" type="checkbox"> P1</label><label><input id="tree-p2" type="checkbox"> P2</label></div></div>
+        <p id="analysis-summary" class="muted">Waiting for search…</p>
+        <div class="analysis-head"><span>Move</span><span>Win estimate</span><span>Visits</span></div>
+        <div id="analysis" class="analysis-list"></div>
+        <button id="analysis-more" hidden>Show more moves</button>
+        <p class="analysis-help muted">Hover to inspect. Select a move, then commit. Ranking holds while you inspect the list.</p>
+      </section>
+    </aside>
+  </main>
+</body>
+</html>

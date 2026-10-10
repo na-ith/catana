@@ -14,8 +14,9 @@ def snapshot(url):
 
 
 def viewer_move(stepper, url, state, index):
-    payload = json.dumps({"type": "transform", "position_version": state["controls"]["position_version"],
-                          "action_index": index}).encode()
+    move = next(move for move in state["transformations"] if move["index"] == index)
+    payload = json.dumps({"type": "move", "position_version": state["controls"]["position_version"],
+                          "move_id": move["id"]}).encode()
     request = urllib.request.Request(url + "command", data=payload,
                                      headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(request, timeout=3) as response:

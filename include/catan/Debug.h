@@ -6,10 +6,11 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace catan::debug {
 
-enum class ViewerCommandType { SelectAction, SelectTransformation, ObserveVictory, RandomChance, Rewind, ToggleTree };
+enum class ViewerCommandType { SelectMove, SelectAction, SelectTransformation, ObserveVictory, RandomChance, Rewind, ToggleTree };
 
 struct ViewerCommand {
     ViewerCommandType type{ViewerCommandType::SelectAction};
@@ -17,7 +18,22 @@ struct ViewerCommand {
     std::size_t actionIndex{};
     PlayerId player{PlayerId::One};
     bool enabled{};
+    std::string moveId;
+    std::uint64_t requestId{};
 };
+
+struct ViewerEvent {
+    std::uint64_t id{};
+    std::string type;
+    std::string message;
+    std::vector<std::string> details;
+    std::optional<std::uint8_t> diceTotal;
+    std::array<Resources, PlayerCount> production{};
+};
+
+// Uses the observed before/after states; hidden development draws stay hidden.
+ViewerEvent describeViewerEvent(const Action& action, const GameState& before,
+                               const GameState& after, const std::vector<std::string>& engineEvents);
 
 // Debug-only, omniscient snapshot format. This is deliberately separate from
 // the simulation model and is not intended as a stable save-game format.
@@ -47,8 +63,9 @@ bool renderStateImage(const InformationState& state, const std::filesystem::path
 bool renderStateImage(const InformationState& state, const MctsResult& analysis,
                       const std::filesystem::path& output, std::string* error = nullptr);
 
-// Long-running debug viewer. start() launches the Python localhost viewer in
-// a browser window; update() atomically publishes subsequent states.
+// Long-running debug viewer. start() publishes immutable layout and launches
+// the Python localhost viewer. update() publishes position/input changes and
+// analysis separately; unchanged positions reuse their legal-action catalog.
 class LiveVisualizer {
 public:
     LiveVisualizer();
@@ -67,7 +84,11 @@ public:
     void setInformationState(const InformationState& state);
     void setDiscardInput(std::optional<PlayerId> player,
                          std::array<bool, PlayerCount> selected = {});
+    void setEvents(const std::vector<ViewerEvent>& events);
     std::optional<ViewerCommand> takeCommand(std::string* error = nullptr);
+    // IDs identify published typed actions, independently of analysis ordering.
+    std::optional<Action> resolveMove(const std::string& id, std::uint64_t positionVersion) const;
+    void acknowledge(const ViewerCommand& command, bool accepted, const std::string& message);
     std::uint64_t positionVersion() const;
     bool running() const;
 

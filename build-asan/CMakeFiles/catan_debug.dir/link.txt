@@ -1,2 +1,0 @@
-/usr/bin/ar qc libcatan_debug.a CMakeFiles/catan_debug.dir/src/Debug.cpp.o
-/usr/bin/ranlib libcatan_debug.a

@@ -149,6 +149,18 @@ struct HistoryEntry {
     std::optional<catan::GameState> state;
     std::mt19937 random;
     std::array<std::optional<catan::InformationState>, catan::PlayerCount> information;
+    std::vector<catan::debug::ViewerEvent> viewerEvents;
+};
+
+// Every viewer request gets an engine acknowledgement, including early returns.
+struct ViewerReceipt {
+    catan::debug::LiveVisualizer& viewer;
+    const std::optional<catan::debug::ViewerCommand>& command;
+    bool accepted{};
+    std::string message{"Move could not be applied."};
+    ~ViewerReceipt() {
+        if (command) viewer.acknowledge(*command, accepted, message);
+    }
 };
 
 class LiveMctsAnalysis {
@@ -532,6 +544,17 @@ int main(int argc, char** argv) {
     }
     std::mt19937 random(seed ^ 0x9e3779b9U);
     std::vector<HistoryEntry> history;
+    std::vector<catan::debug::ViewerEvent> viewerEvents;
+    std::uint64_t nextViewerEventId = 1;
+    auto recordViewerEvent = [&](const catan::Action& action, const catan::GameState& before,
+                                 const std::vector<std::string>& engineEvents) {
+        if (!enableVisualizer) return;
+        if (std::holds_alternative<catan::RollDice>(action)) viewerEvents.clear();
+        auto event = catan::debug::describeViewerEvent(action, before, currentState(), engineEvents);
+        event.id = nextViewerEventId++;
+        viewerEvents.push_back(std::move(event));
+        visualizer.setEvents(viewerEvents);
+    };
     // Input staging is deliberately not part of GameState or InformationState.
     std::array<std::optional<catan::Resources>, catan::PlayerCount> pendingDiscardChoices;
     auto inputPlayer = [&]() {
@@ -622,6 +645,7 @@ int main(int argc, char** argv) {
         std::string line;
         std::optional<catan::debug::ViewerCommand> viewerCommand;
         if (!waitForInputOrViewer(visualizer, enableVisualizer, line, viewerCommand)) break;
+        ViewerReceipt receipt{visualizer, viewerCommand};
         if (!viewerCommand && (line == "q" || line == "quit")) break;
         if (!viewerCommand && line == "status") {
             std::cout << "State: initialized | " << catan::toString(currentState().turn.phase)
@@ -636,6 +660,8 @@ int main(int argc, char** argv) {
         auto rewindOneAction = [&]() {
             if (pendingDiscardChoices[0] || pendingDiscardChoices[1]) {
                 pendingDiscardChoices = {};
+                std::erase_if(viewerEvents, [](const auto& event) { return event.type == "discard_selection"; });
+                if (enableVisualizer) visualizer.setEvents(viewerEvents);
                 refreshDiscardInput();
                 std::cout << "Cancelled pending discard selections; game state unchanged.\n";
                 return;
@@ -650,8 +676,10 @@ int main(int argc, char** argv) {
             if (previous.state) game.emplace(std::move(*previous.state));
             random = previous.random;
             information = std::move(previous.information);
+            viewerEvents = std::move(previous.viewerEvents);
             currentAnalysis.reset();
             if (enableVisualizer) {
+                visualizer.setEvents(viewerEvents);
                 visualizer.setRewindAvailable(!history.empty());
                 std::string error;
                 if (perspective) visualizer.setInformationState(*information[catan::index(*perspective)]);
@@ -666,24 +694,49 @@ int main(int argc, char** argv) {
 
         if (viewerCommand) {
             if (viewerCommand->positionVersion != visualizer.positionVersion()) {
+                receipt.message = "The position changed. Select a move in the current position.";
                 std::cout << "Ignored a stale viewer command.\n";
                 continue;
             }
             if (viewerCommand->type == catan::debug::ViewerCommandType::Rewind) {
+                receipt.accepted = !history.empty() || pendingDiscardChoices[0] || pendingDiscardChoices[1];
+                receipt.message = receipt.accepted ? "Rewound one action." : "There is no action to rewind.";
                 rewindOneAction();
                 continue;
             }
             if (viewerCommand->type == catan::debug::ViewerCommandType::ToggleTree) {
                 if (perspective && viewerCommand->player != *perspective) {
+                    receipt.message = "The opponent tree is unavailable in perspective mode.";
                     std::cout << "The opponent tree is unavailable in perspective mode.\n";
                     continue;
                 }
                 liveAnalysis.setEnabled(viewerCommand->player, viewerCommand->enabled);
+                receipt.accepted = true;
+                receipt.message = viewerCommand->enabled ? "Analysis resumed." : "Analysis paused.";
                 std::cout << catan::toString(viewerCommand->player) << " belief-tree calculation "
                           << (viewerCommand->enabled ? "enabled" : "paused") << ".\n";
                 continue;
             }
-            if (viewerCommand->type == catan::debug::ViewerCommandType::SelectTransformation) {
+            if (viewerCommand->type == catan::debug::ViewerCommandType::SelectMove) {
+                const auto selected = visualizer.resolveMove(viewerCommand->moveId, viewerCommand->positionVersion);
+                if (!selected) {
+                    receipt.message = "This move is no longer available.";
+                    continue;
+                }
+                auto found = std::find(actions.begin(), actions.end(), *selected);
+                if (found == actions.end()) {
+                    const auto* batch = std::get_if<catan::MaritimeTradeBatch>(&*selected);
+                    if (!std::holds_alternative<catan::Resign>(*selected) &&
+                        (!batch || !catan::Game(currentState()).canTradeBatch(*batch))) {
+                        receipt.message = "This move is no longer legal.";
+                        continue;
+                    }
+                    actions.push_back(*selected);
+                    found = std::prev(actions.end());
+                }
+                line = std::to_string(static_cast<std::size_t>(found - actions.begin()));
+                std::cout << "Viewer selected " << line << ": " << describeAction(*selected, currentState()) << '\n';
+            } else if (viewerCommand->type == catan::debug::ViewerCommandType::SelectTransformation) {
                 if (viewerCommand->actionIndex >= actions.size()) {
                     std::cout << "Viewer transformation is no longer available.\n";
                     continue;
@@ -836,7 +889,7 @@ int main(int argc, char** argv) {
             continue;
         }
 
-        const HistoryEntry previous{game ? std::optional(game->state()) : std::nullopt, random, information};
+        HistoryEntry previous{game ? std::optional(game->state()) : std::nullopt, random, information, viewerEvents};
         std::size_t choice = engineChoice.value_or(actions.size());
         if (!engineChoice && !observeVictory) {
             bool requestRandom = (line == "random" || line == "auto") && !chance.empty();
@@ -867,12 +920,24 @@ int main(int argc, char** argv) {
             ? catan::Action(catan::ObserveVictory{line == "winner p1" ? catan::PlayerId::One : catan::PlayerId::Two})
             : actions[choice];
         if (const auto* discard = std::get_if<catan::DiscardResources>(&selectedAction)) {
-            pendingDiscardChoices[catan::index(inputPlayer())] = discard->cards;
+            const auto discardingPlayer = inputPlayer();
+            pendingDiscardChoices[catan::index(discardingPlayer)] = discard->cards;
             bool ready = true;
             for (std::size_t p = 0; p < catan::PlayerCount; ++p)
                 ready &= !currentState().turn.pendingDiscards[p] || pendingDiscardChoices[p].has_value();
             if (!ready) {
                 currentAnalysis.reset();
+                if (enableVisualizer) {
+                    catan::debug::ViewerEvent event;
+                    event.id = nextViewerEventId++;
+                    event.type = "discard_selection";
+                    event.message = std::string(catan::toString(discardingPlayer)) + " selected their discard; waiting for the other player";
+                    viewerEvents.push_back(std::move(event));
+                    visualizer.setEvents(viewerEvents);
+                }
+                refreshDiscardInput();
+                receipt.accepted = true;
+                receipt.message = "Discard choice recorded; waiting for the other player.";
                 std::cout << "Discard selection recorded; waiting for the other player. Game state unchanged.\n";
                 continue;
             }
@@ -883,10 +948,19 @@ int main(int argc, char** argv) {
         }
         liveAnalysis.stop();
         currentAnalysis.reset();
+        const auto& beforeAction = previous.state ? *previous.state
+            : previous.information[catan::index(*perspective)]->state();
         auto result = perspective ? information[catan::index(*perspective)]->transform(selectedAction)
                                   : game->transform(selectedAction);
+        receipt.accepted = result.accepted;
+        receipt.message = result.accepted ? "Move applied." : result.message;
         if (!result.accepted) std::cout << "Rejected: " << result.message << '\n';
         if (result.accepted) {
+            if (std::holds_alternative<catan::ResolveDiscards>(selectedAction)) {
+                const auto staged = [](const auto& event) { return event.type == "discard_selection"; };
+                std::erase_if(viewerEvents, staged);
+                std::erase_if(previous.viewerEvents, staged);
+            }
             pendingDiscardChoices = {};
             if (enableVisualizer) visualizer.setDiscardInput(std::nullopt);
             if (!perspective) {
@@ -902,7 +976,8 @@ int main(int argc, char** argv) {
                     }
                 }
             }
-            history.push_back(previous);
+            recordViewerEvent(selectedAction, beforeAction, result.events);
+            history.push_back(std::move(previous));
         }
         if (enableVisualizer) {
             if (result.accepted) {
@@ -917,8 +992,10 @@ int main(int argc, char** argv) {
             currentState().turn.decisionPlayer != *perspective) {
             liveAnalysis.stop();
             const catan::Action unknown = catan::DrawUnknownDevelopmentCard{};
+            const auto beforeUnknown = currentState();
             const auto draw = information[catan::index(*perspective)]->transform(unknown);
             if (!draw.accepted) throw std::logic_error(draw.message);
+            recordViewerEvent(unknown, beforeUnknown, draw.events);
             for (const auto& event : draw.events) std::cout << "  -> " << event << '\n';
             if (enableVisualizer) {
                 visualizer.setInformationState(*information[catan::index(*perspective)]);

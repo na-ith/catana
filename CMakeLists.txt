@@ -52,6 +52,10 @@ target_compile_definitions(catan_import PRIVATE
 )
 target_link_libraries(catan_cli PRIVATE catan_debug catan_import)
 
+add_executable(catan_mcts_benchmark benchmarks/MctsBenchmark.cpp)
+target_link_libraries(catan_mcts_benchmark PRIVATE catan_mcts)
+target_compile_options(catan_mcts_benchmark PRIVATE -Wall -Wextra -Wpedantic)
+
 enable_testing()
 add_executable(catan_tests
     tests/TestMain.cpp
@@ -82,6 +86,10 @@ target_link_libraries(catan_snapshot PRIVATE catan_debug)
 add_test(NAME debug_snapshot
     COMMAND catan_snapshot "${CMAKE_CURRENT_BINARY_DIR}/debug_state_test.json")
 if(Python3_Interpreter_FOUND)
+    add_test(NAME viewer_boundary
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/VerifyViewerBoundary.py"
+                "$<TARGET_FILE:catan_cli>")
+    set_tests_properties(viewer_boundary PROPERTIES TIMEOUT 45)
     add_test(NAME information_cli
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/VerifyInformationCli.py"
                 "$<TARGET_FILE:catan_cli>" "${CMAKE_CURRENT_SOURCE_DIR}/tools/render_state.py")

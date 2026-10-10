@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/Users/nathan.ellis/Documents/catan-bot/build-asan/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

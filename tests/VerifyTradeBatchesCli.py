@@ -51,8 +51,8 @@ def main():
                     assert time.monotonic() < deadline, before
                     time.sleep(0.05)
                 assert "bank" in batch["highlight_targets"]
-                payload = json.dumps({"type": "action", "position_version": before["controls"]["position_version"],
-                                      "action_index": batch["index"]}).encode()
+                payload = json.dumps({"type": "move", "position_version": before["controls"]["position_version"],
+                                      "move_id": batch["id"]}).encode()
                 request = urllib.request.Request(url + "command", data=payload,
                                                  headers={"Content-Type": "application/json"})
                 with urllib.request.urlopen(request, timeout=3) as response:

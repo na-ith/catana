@@ -1,6 +1,7 @@
 /target
 .cache
 /build
+**/*build*/
 /catan-build-release
 .vscode
 __pycache__/
