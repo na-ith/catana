@@ -47,7 +47,8 @@ double terminalOrHeuristicValue(const GameState& state, PlayerId perspective) {
     if (state.winner) return *state.winner == perspective ? 1.0 : 0.0;
 
     auto strength = [&](PlayerId player) {
-        return 1.0 / (15.0 - victoryPoints(state, player));
+        double score = 10.0 / (15.0 - victoryPoints(state, player));
+        return score;
     };
 
     const double difference = strength(perspective) - strength(opponent(perspective));
@@ -55,7 +56,6 @@ double terminalOrHeuristicValue(const GameState& state, PlayerId perspective) {
 }
 
 bool isPrunedSearchAction(const GameState& state, const Action& action) {
-    if (std::holds_alternative<Resign>(action)) return true;
     if (state.turn.phase == Phase::InitialSettlement) {
         if (const auto* settlement = std::get_if<PlaceSettlement>(&action)) {
             unsigned productiveHexes = 0;
@@ -134,10 +134,9 @@ void initialize(Node& node) {
             [&](const Action& action) { return !isPrunedSearchAction(node.state, action); });
         node.edges.reserve(legal.size());
         for (const auto& action : legal) {
-            // Restore legal non-resigning choices if heuristics remove every
+            // Restore legal choices if heuristics remove every
             // continuation. See docs/MCTS_DEVIATIONS.md.
-            if (std::holds_alternative<Resign>(action) ||
-                (hasPreferredAction && isPrunedSearchAction(node.state, action)) ||
+            if ((hasPreferredAction && isPrunedSearchAction(node.state, action)) ||
                 search::redundantTrade(node.state, node.trading ? &*node.trading : nullptr, action)) continue;
             node.edges.push_back({action, std::nullopt, nullptr, true});
         }
@@ -233,9 +232,8 @@ Action rolloutAction(Game& game, Random& random, const search::TradeContext* tra
             !search::redundantTrade(game.state(), trading, legal[i])) candidates.push_back(i);
     if (candidates.empty()) {
         for (std::size_t i = 0; i < legal.size(); ++i)
-            if (!std::holds_alternative<Resign>(legal[i])) candidates.push_back(i);
+            candidates.push_back(i);
     }
-    if (candidates.empty()) return legal.front();
     std::uniform_int_distribution<std::size_t> choose(0, candidates.size() - 1);
     const auto selected = legal[candidates[choose(random)]];
     if (const auto* trade = std::get_if<MaritimeTrade>(&selected)) {

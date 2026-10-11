@@ -113,13 +113,6 @@ bounded evaluator based on victory points, resources, played knights, road
 length, and unplayed development cards. This keeps iteration time bounded, but
 means the displayed win percentages are estimates rather than solved values.
 
-### Resignation pruning
-
-`Resign` remains a legal simulator operation but is omitted from expanded
-nodes and random rollouts. In this win/loss model it cannot improve the acting
-player's win probability over continuing, and exploring it spends visits on a
-known zero-value branch.
-
 ### Low-production initial-settlement pruning (heuristic)
 
 During all four initial settlement placements, search omits vertices touching
@@ -150,7 +143,7 @@ anticipating future construction. They are not proven optimality-preserving.
 Both heuristics apply to tree expansion and random rollouts, for either player
 and both belief forests. They use public board information only. Simulator
 legality and the debugging stepper are unchanged. If pruning would leave a
-decision with no continuation, search restores its legal non-resigning actions
+decision with no continuation, search restores its legal actions
 so unusual positions still have a usable tree. Manually selecting an omitted
 action uses the existing fresh-root fallback described below.
 

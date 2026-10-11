@@ -95,7 +95,6 @@ public:
         require(game_.state().winner == std::optional<PlayerId>{PlayerId::One},
                 "the scripted player did not win");
         require(victoryPoints(game_.state(), PlayerId::One) >= 15, "winner has fewer than 15 points");
-        require(!resigned_, "the game ended by resignation instead of normal victory");
         require(discardDecisions_ >= 2, "the seven did not make both players discard");
         require(robberSteals_ >= 1, "no robber steal occurred");
         require(freeRoadsPlaced_ == 2, "Road Building did not place two roads");
@@ -109,7 +108,7 @@ public:
                 "Longest Road was not earned");
         require(maritimeTrades_ >= 1, "no maritime trade occurred");
 
-        for (std::size_t action = 0; action < ResignIndex; ++action)
+        for (std::size_t action = 0; action <= EndTurnIndex; ++action)
             require(seenActions_[action], "an expected action variant was never exercised: index " +
                                          std::to_string(action));
 
@@ -128,9 +127,9 @@ public:
     }
 
 private:
-    // Observation-only variants belong to InformationState, not the rules
-    // playthrough. Find the simulator's final action explicitly.
-    static constexpr std::size_t ResignIndex = Action{Resign{}}.index();
+    // Cover simulator actions through EndTurn; observation-only variants
+    // are exercised separately through InformationState.
+    static constexpr std::size_t EndTurnIndex = Action{EndTurn{}}.index();
     Game game_;
     std::array<bool, std::variant_size_v<Action>> seenActions_{};
     std::vector<std::string> trace_;
@@ -143,7 +142,6 @@ private:
     unsigned plentyPicks_{};
     unsigned monopoliesPlayed_{};
     unsigned maritimeTrades_{};
-    bool resigned_{};
 
     static constexpr std::array<DevelopmentCard, 8> DevelopmentPlan{
         DevelopmentCard::RoadBuilding,
@@ -182,7 +180,6 @@ private:
         if (std::holds_alternative<ChooseYearOfPlentyResource>(action)) ++plentyPicks_;
         if (std::holds_alternative<PlayMonopoly>(action)) ++monopoliesPlayed_;
         if (std::holds_alternative<MaritimeTrade>(action)) ++maritimeTrades_;
-        if (std::holds_alternative<Resign>(action)) resigned_ = true;
         if (phase == Phase::FreeRoads && std::holds_alternative<PlaceRoad>(action)) ++freeRoadsPlaced_;
 
         std::string reason;

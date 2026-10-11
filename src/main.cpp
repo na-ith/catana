@@ -626,9 +626,6 @@ int main(int argc, char** argv) {
             }
         };
         if (currentAnalysis) addEngineBatches(*currentAnalysis);
-        actions.erase(std::remove_if(actions.begin(), actions.end(), [](const auto& action) {
-            return std::holds_alternative<catan::Resign>(action);
-        }), actions.end());
         const auto chance = perspective ? information[catan::index(*perspective)]->chanceOutcomes()
                                        : game->chanceOutcomes();
         for (std::size_t i = 0; i < actions.size(); ++i) {
@@ -726,8 +723,7 @@ int main(int argc, char** argv) {
                 auto found = std::find(actions.begin(), actions.end(), *selected);
                 if (found == actions.end()) {
                     const auto* batch = std::get_if<catan::MaritimeTradeBatch>(&*selected);
-                    if (!std::holds_alternative<catan::Resign>(*selected) &&
-                        (!batch || !catan::Game(currentState()).canTradeBatch(*batch))) {
+                    if (!batch || !catan::Game(currentState()).canTradeBatch(*batch)) {
                         receipt.message = "This move is no longer legal.";
                         continue;
                     }

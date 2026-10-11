@@ -190,10 +190,6 @@ std::vector<Action> Game::legalTransformations() const {
                 result.emplace_back(PlayMonopoly{static_cast<Resource>(r)});
     }
 
-    const bool playerDecision = state_.turn.phase != Phase::DevelopmentDraw &&
-                                state_.turn.phase != Phase::RobberSteal &&
-                                state_.turn.phase != Phase::DiceRoll;
-    if (playerDecision) result.emplace_back(Resign{});
     return result;
 }
 
@@ -598,10 +594,6 @@ StepResult Game::transform(const Action& action) {
         state_.players[index(player)].resources[index(value->resource)] += amount;
     } else if (std::holds_alternative<EndTurn>(action)) {
         finishTurn(result.events);
-    } else if (std::holds_alternative<Resign>(action)) {
-        state_.winner = opponent(player);
-        state_.turn.phase = Phase::Finished;
-        result.events.push_back(std::string(toString(player)) + " resigned");
     }
 
     std::string invalidReason;

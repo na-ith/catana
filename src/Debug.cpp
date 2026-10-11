@@ -165,7 +165,7 @@ void writeHighlightTargets(std::ostream& out, const Action& action, PlayerId per
             targets.push_back(developmentCardTarget(perspective, DevelopmentCard::Monopoly));
             const auto victim = perspective == PlayerId::One ? PlayerId::Two : PlayerId::One;
             targets.push_back(resourceTarget(victim, value.resource));
-        } else if constexpr (std::is_same_v<T, EndTurn> || std::is_same_v<T, Resign>) {
+        } else if constexpr (std::is_same_v<T, EndTurn>) {
             targets.push_back("turn");
         }
     }, action);
@@ -183,7 +183,7 @@ const char* actionKind(const Action& action) {
         "place_settlement", "place_road", "begin_roll", "roll_dice", "discard",
         "move_robber", "steal", "build_settlement", "build_road", "build_city", "trade",
         "buy_development", "draw_development", "play_knight", "play_road_building",
-        "play_year_of_plenty", "choose_resource", "play_monopoly", "end_turn", "resign",
+        "play_year_of_plenty", "choose_resource", "play_monopoly", "end_turn",
         "draw_unknown_development", "observe_victory", "resolve_discards", "trade_batch"
     };
     static_assert(kinds.size() == std::variant_size_v<Action>);
@@ -477,7 +477,6 @@ bool writeStateJsonImpl(const GameState& state, const MctsResult* analysis, cons
             : information ? information->decisionPlayer() : state.turn.decisionPlayer;
         transformations = information ? information->discardChoices(actor) : Game(state).discardChoices(actor);
     }
-    if (!legalActions) std::erase_if(transformations, [](const Action& action) { return std::holds_alternative<Resign>(action); });
     const auto chances = information ? information->chanceOutcomes() : Game(state).chanceOutcomes();
     for (std::size_t i = 0; i < transformations.size(); ++i) {
         if (i) out << ',';
@@ -608,7 +607,6 @@ ViewerEvent describeViewerEvent(const Action& action, const GameState& before,
         else if constexpr (std::is_same_v<T, DiscardResources>) event.message = actor + " discarded resources";
         else if constexpr (std::is_same_v<T, ResolveDiscards>) event.message = "Discard choices resolved together";
         else if constexpr (std::is_same_v<T, ObserveVictory>) event.message = playerName(value.player) + " won the game";
-        else if constexpr (std::is_same_v<T, Resign>) event.message = actor + " resigned";
     }, action);
     for (std::size_t p = 0; p < PlayerCount; ++p) {
         std::string gains, losses;
@@ -711,11 +709,6 @@ struct LiveVisualizer::Impl {
                 const auto actor = discardPlayer.value_or(state.turn.decisionPlayer);
                 legalActions = view ? view->discardChoices(actor) : Game(state).discardChoices(actor);
             }
-            // Keep legacy CLI indices, exposing resign as an additional viewer move.
-            const bool canResign = std::any_of(legalActions.begin(), legalActions.end(),
-                [](const Action& action) { return std::holds_alternative<Resign>(action); });
-            std::erase_if(legalActions, [](const Action& action) { return std::holds_alternative<Resign>(action); });
-            if (canResign) legalActions.emplace_back(Resign{});
             moves.clear();
             for (const auto& action : legalActions) moves.emplace(moveId(action), action);
             extraMoves.clear();

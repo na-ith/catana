@@ -118,12 +118,8 @@ TEST(deterministic_random_playouts_preserve_invariants_and_never_stall) {
         for (unsigned step = 0; step < 500 && game.state().turn.phase != Phase::Finished; ++step) {
             const auto legal = game.legalTransformations();
             REQUIRE(!legal.empty());
-            std::vector<Action> candidates;
-            for (const auto& action : legal)
-                if (!std::holds_alternative<Resign>(action)) candidates.push_back(action);
-            REQUIRE(!candidates.empty());
-            std::uniform_int_distribution<std::size_t> choose(0, candidates.size() - 1);
-            const auto result = game.transform(candidates[choose(random)]);
+            std::uniform_int_distribution<std::size_t> choose(0, legal.size() - 1);
+            const auto result = game.transform(legal[choose(random)]);
             REQUIRE(result.accepted);
             std::string reason;
             CHECK(validateState(game.state(), &reason));

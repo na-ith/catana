@@ -35,13 +35,12 @@ struct PlayYearOfPlenty { bool operator==(const PlayYearOfPlenty&) const = defau
 struct ChooseYearOfPlentyResource { Resource resource; bool operator==(const ChooseYearOfPlentyResource&) const = default; };
 struct PlayMonopoly { Resource resource; bool operator==(const PlayMonopoly&) const = default; };
 struct EndTurn { bool operator==(const EndTurn&) const = default; };
-struct Resign { bool operator==(const Resign&) const = default; };
 
 using Action = std::variant<
     PlaceSettlement, PlaceRoad, BeginRoll, RollDice, DiscardResources, MoveRobber,
     StealResource, BuildSettlement, BuildRoad, BuildCity, MaritimeTrade,
     BuyDevelopmentCard, DrawDevelopmentCard, PlayKnight, PlayRoadBuilding,
-    PlayYearOfPlenty, ChooseYearOfPlentyResource, PlayMonopoly, EndTurn, Resign,
+    PlayYearOfPlenty, ChooseYearOfPlentyResource, PlayMonopoly, EndTurn,
     DrawUnknownDevelopmentCard, ObserveVictory, ResolveDiscards, MaritimeTradeBatch>;
 
 std::string toString(const Action& action);

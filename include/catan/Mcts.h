@@ -86,8 +86,7 @@ private:
 // Information search samples complete worlds from the observer's posterior.
 // Chance actions
 // use Game::chanceOutcomes(); opposing decision nodes optimize against the
-// requested perspective. Resignation is deliberately excluded as a dominated
-// branch. Non-terminal rollouts use a bounded state evaluator.
+// requested perspective. Non-terminal rollouts use a bounded state evaluator.
 class MctsEngine {
 public:
     explicit MctsEngine(MctsConfig config = {});

@@ -108,10 +108,11 @@ def main():
                 purchased = get(url, "state.json")
                 assert purchased["turn"]["phase"] == "main"
                 assert purchased["players"][target - 1]["development_cards"]["road building"] > 0
-            resign = next(move for move in purchased["transformations"] if move["type"] == "resign")
-            command(stepper, url, purchased, {"type": "move", "move_id": resign["id"]})
-            finished = get(url, "state.json")
-            assert finished["turn"]["phase"] == "finished" and finished["turn"]["winner"] == 2 - target
+            end_turn = next(move for move in purchased["transformations"] if move["type"] == "end_turn")
+            command(stepper, url, purchased, {"type": "move", "move_id": end_turn["id"]})
+            next_turn = get(url, "state.json")
+            assert next_turn["turn"]["phase"] == "await roll"
+            assert next_turn["turn"]["decision_player"] == 2 - target
         finally:
             stepper.finish()
     print("Typed moves, stale rejection, rewind, privacy and independent publications passed")

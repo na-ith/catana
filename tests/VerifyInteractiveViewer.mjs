@@ -167,8 +167,6 @@ try {
     await page.locator('.legal-target').first().click();await page.waitForFunction(()=>!document.body.classList.contains('busy'));
     assert.equal(captured.at(-1).move_id,action.id);
   }
-  const resign=move('resign');await show([resign]);
-  await page.getByRole('button',{name:'Resign…'}).click();await commit(resign);
   await show([],'main',{possible_winners:[1]});
   await page.getByRole('button',{name:'Record P2 victory'}).click();
   await page.waitForFunction(()=>!document.body.classList.contains('busy'));

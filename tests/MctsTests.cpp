@@ -73,9 +73,6 @@ TEST(mcts_reports_every_legal_root_action_with_visits_and_a_probability) {
     const auto state = blankState();
     const Game game(state);
     auto legal = game.legalTransformations();
-    legal.erase(std::remove_if(legal.begin(), legal.end(), [](const auto& action) {
-        return std::holds_alternative<Resign>(action);
-    }), legal.end());
     const auto result = MctsEngine(fastConfig()).search(state);
     CHECK(!result.chanceNode);
     CHECK_EQ(result.actions.size(), legal.size());
@@ -88,7 +85,6 @@ TEST(mcts_reports_every_legal_root_action_with_visits_and_a_probability) {
         CHECK(evaluation.estimatedWinProbability >= 0.0);
         CHECK(evaluation.estimatedWinProbability <= 1.0);
         CHECK(!evaluation.chanceProbability.has_value());
-        CHECK(!std::holds_alternative<Resign>(evaluation.action));
     }
 }
 
@@ -189,7 +185,7 @@ TEST(mcts_prunes_monopoly_choices_that_take_no_cards) {
 
     // The simulator keeps all five choices legal, but the search omits the two
     // that consume the card without transferring anything.
-    CHECK_EQ(Game(state).legalTransformations().size(), std::size_t{7});
+    CHECK_EQ(Game(state).legalTransformations().size(), std::size_t{6});
     CHECK_EQ(result.actions.size(), std::size_t{4});
     CHECK_EQ(result.uniqueRootChildren, std::size_t{4});
     std::size_t yieldingMonopolies = 0;
@@ -327,14 +323,6 @@ TEST(mcts_defers_pre_roll_year_of_plenty_even_when_bank_cards_can_be_reserved) {
              std::uint8_t{2});
     CHECK_EQ(reserve.state().players[index(PlayerId::Two)].resources[index(Resource::Ore)],
              std::uint8_t{17});
-}
-
-TEST(mcts_never_expands_or_recommends_resignation) {
-    const auto result = MctsEngine(fastConfig(31415)).search(blankState());
-    REQUIRE(result.bestAction.has_value());
-    CHECK(!std::holds_alternative<Resign>(*result.bestAction));
-    for (const auto& evaluation : result.actions)
-        CHECK(!std::holds_alternative<Resign>(evaluation.action));
 }
 
 TEST(mcts_selects_an_immediate_fifteen_point_win) {

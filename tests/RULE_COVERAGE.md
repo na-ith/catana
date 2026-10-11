@@ -22,7 +22,7 @@ The suite treats Colonist's published rules as the executable specification:
 | Development | Deck composition, buying/drawing, new-card delay, one per turn, all four action cards, hidden VP scoring |
 | Awards | Longest-road trails/cycles/interruption/ties/transfers; largest-army threshold/ties/transfers |
 | Balanced dice | 36-card deck, no replacement, 5-roll memory, 0.34 recent-roll reduction, reshuffle before the draw after 12 cards remain, 0.4 seven-streak adjustment, per-player seven balancing and clamping |
-| Lifecycle | Phase legality, turn hand-off, resignation, rollback, invariants, chance-node normalization, deterministic playouts |
+| Lifecycle | Phase legality, turn hand-off, rollback, invariants, chance-node normalization, deterministic playouts |
 | Full game | Seeded setup-to-15-point system scenario using only legal actions; both-player discard, robber steals, building, maritime trade, every development-card type, both awards, and natural victory |
 
 ## Boundaries of “exact”

@@ -234,14 +234,3 @@ TEST(ranked_victory_requires_fifteen_points) {
     CHECK_EQ(game.state().turn.phase, Phase::Finished);
     CHECK_EQ(victoryPoints(game.state(), PlayerId::One), std::uint8_t{15});
 }
-
-TEST(resignation_immediately_awards_the_other_player) {
-    auto state = blankState(Phase::Main);
-    state.turn.decisionPlayer = PlayerId::Two;
-    state.activePlayer = PlayerId::Two;
-    Game game(state);
-    accepted(game, Resign{});
-    CHECK_EQ(game.state().winner, std::optional<PlayerId>{PlayerId::One});
-    CHECK_EQ(game.state().turn.phase, Phase::Finished);
-    CHECK(game.legalTransformations().empty());
-}

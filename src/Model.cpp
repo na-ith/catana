@@ -91,7 +91,6 @@ std::string toString(const Action& action) {
         else if constexpr (std::is_same_v<T, ChooseYearOfPlentyResource>) out << "choose " << toString(value.resource);
         else if constexpr (std::is_same_v<T, PlayMonopoly>) out << "play monopoly for " << toString(value.resource);
         else if constexpr (std::is_same_v<T, EndTurn>) out << "end turn";
-        else if constexpr (std::is_same_v<T, Resign>) out << "resign";
         return out.str();
     }, action);
 }

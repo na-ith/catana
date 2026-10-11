@@ -213,7 +213,7 @@ function highlightMove(move) {
 }
 function selectMove(id) {
   if(pending || !moves.has(id)) return;
-  const options=game.transformations.filter(move=>move.type!=='resign');
+  const options=game.transformations;
   if(options.length===1 && options[0].id===id) {commitMove(id);return;}
   selectedId=id; renderSelection(); highlightMove(moves.get(id)); showPreview(moves.get(id));
   for(const [key,row] of analysisRows) row.classList.toggle('selected',key===id);
@@ -225,10 +225,9 @@ function renderSelection() {
   setText($('selected-label'),moveLabel(move));
   setText($('selected-detail'),move.type==='trade_batch'
     ? move.trades.map((trade,i)=>`${i+1}. ${trade.give} → ${trade.receive}`).join(' · ')
-    : move.type==='resign' ? 'Concede the game to the other player.'
     : move.chance_probability != null ? `Observed outcome · ${(move.chance_probability*100).toFixed(1)}% chance`
     : 'Commit to apply this move to the current position.');
-  setText($('commit'),move.type==='resign'?'Confirm resignation':game.information&&actor()!==game.information.observer?'Record move':'Commit move');
+  setText($('commit'),game.information&&actor()!==game.information.observer?'Record move':'Commit move');
   $('commit').disabled=pending;
 }
 function resourceButton(resource,onClick,label=null) {
@@ -285,8 +284,6 @@ function renderActions() {
     button('Sample random outcome',()=>sendCommand('random'))]));
   const winners=(game.possible_winners || []).map(player=>button(`Record P${player+1} victory`,()=>sendCommand('winner',{player})));
   if(winners.length) nodes.push(group('Observed victory',winners));
-  const resign=legal('resign')[0];
-  if(resign) nodes.push(group('Game', [button('Resign…',()=>selectMove(resign.id),'danger')]));
   $('actions').replaceChildren(...nodes);
 }
 function discardControls(choices) {

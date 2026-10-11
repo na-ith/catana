@@ -88,10 +88,10 @@ Start the stepper with the visualizer flag:
 This starts a Python localhost viewer and opens it in a new browser window. Select **Settlement**, **Road**, **City**, or **Robber** to highlight legal board targets. Hover or focus a target to preview the move, then click or press Enter to commit it. Setup and mandatory robber/road phases automatically select their tool. **Board IDs** shows engine IDs when needed. The local viewer server stops when the stepper exits; if the browser cannot open automatically, the terminal prints the local URL.
 
 The move panel covers dice totals, development-card purchases and plays, draws,
-steals, Year of Plenty, Monopoly, end turn, and resignation. Select an action
+steals, Year of Plenty, Monopoly, and end turn. Select an action
 and click **Commit move**. If only one normal move is available (such as rolling
-the dice or ending the turn), selecting it applies it immediately. Resignation
-always requires confirmation. Bank trading highlights legal receiving resources
+the dice or ending the turn), selecting it applies it immediately. Bank trading
+highlights legal receiving resources
 after you select what to give, showing the current port exchange rate. Discards
 use resource counters and enable selection only for a valid complete discard.
 In perspective mode these controls record observed moves and outcomes.
