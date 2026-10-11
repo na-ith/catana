@@ -83,6 +83,12 @@ def main():
             paused = get(url, "state.json")
             assert not paused["controls"]["tree_running"][1 if observer == "p2" else 0]
             assert paused["controls"]["position_version"] == restored["controls"]["position_version"]
+            # Undo the arbitrary settlement used for move/rewind checks so the
+            # purchase helper can choose productive setup for both players.
+            command(stepper, url, paused, {"type": "rewind"})
+            restarted = get(url, "state.json")
+            assert restarted["board"]["buildings"] == position["board"]["buildings"]
+            assert restarted["board"]["roads"] == position["board"]["roads"]
             # Cover native purchases and IDs with string parameters containing
             # spaces, including both known and automatically hidden draws.
             target = 2 if observer else 1

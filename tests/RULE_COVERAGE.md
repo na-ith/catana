@@ -12,7 +12,7 @@ The suite treats Colonist's published rules as the executable specification:
 
 | Domain | Behaviour |
 |---|---|
-| Board | 19 hexes, 54 vertices, 72 edges, terrain/token/port inventories, desert robber, separated 6/8 tiles, deterministic seeds |
+| Board | 19 hexes, 54 vertices, 72 edges, terrain/token/port inventories, desert robber, standard A-R number spirals in six orientations with the desert skipped, separated 6/8 tiles, deterministic seeds |
 | Setup | P1-P2-P2-P1 order, distance rule, attached roads, resources from second settlement only, P1 first turn |
 | Ranked | Two players, no domestic-trade action, 15-point win, discard only above 9, Friendly Robber based only on public points |
 | Production | Settlement/city yields, number matching, robber blocking, bank conservation and shortages |
@@ -33,4 +33,13 @@ Colonist does not publish every server implementation detail. The tests therefor
 - timers, disconnects, automatic choices on timeout, animations, or matchmaking;
 - unannounced server-side changes made after the linked published rules/code.
 
-The generated board is tested against the standard inventory and no-adjacent-6/8 constraint, rather than a Colonist seed. Game-rule or balanced-dice changes should update this document and the corresponding named tests together.
+Generated boards use shuffled terrain and standard A-R numbers in one of six
+counterclockwise spirals, skipping the desert. This approximates Colonist's
+normal Base map based on its published
+[six orientations](https://colonist.io/patch-notes) and separate
+[Base Random map](https://colonist.io/store); the exact spiral implementation,
+orientation probabilities, and port distribution are not confirmed by Colonist.
+Tests cover every desert position and orientation, standard inventories,
+no-adjacent-6/8, and reproducible seeds. Imported boards retain their supplied
+layouts and need not follow the generated spiral. Game-rule or balanced-dice
+changes should update this document and the corresponding named tests together.

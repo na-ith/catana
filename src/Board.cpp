@@ -20,6 +20,37 @@ void addToFirstEmpty(std::array<std::optional<T>, N>& values, T value) {
     throw std::logic_error("topology degree exceeded");
 }
 
+const auto& numberTokenSpirals() {
+    static const auto spirals = [] {
+        // Axial coordinates, counterclockwise in the viewer (positive y is down).
+        // Complete the outer ring, then the inner ring, then the center.
+        constexpr std::array<std::pair<int, int>, BoardTopology::HexCount> spiral{{
+            {2, 0}, {2, -1}, {2, -2}, {1, -2}, {0, -2}, {-1, -1},
+            {-2, 0}, {-2, 1}, {-2, 2}, {-1, 2}, {0, 2}, {1, 1},
+            {1, 0}, {1, -1}, {0, -1}, {-1, 0}, {-1, 1}, {0, 1}, {0, 0}
+        }};
+        std::array<std::array<HexId, BoardTopology::HexCount>, 6> result{};
+        const auto& hexes = BoardTopology::standard().hexes;
+        for (std::size_t rotation = 0; rotation < result.size(); ++rotation) {
+            for (std::size_t position = 0; position < spiral.size(); ++position) {
+                auto [q, r] = spiral[position];
+                for (std::size_t step = 0; step < rotation; ++step) {
+                    const auto nextQ = -r;
+                    r += q;
+                    q = nextQ;
+                }
+                const auto hex = std::find_if(hexes.begin(), hexes.end(), [&](const auto& value) {
+                    return value.center.x == 3 * q && value.center.y == 2 * r + q;
+                });
+                if (hex == hexes.end()) throw std::logic_error("invalid number-token spiral");
+                result[rotation][position] = HexId{static_cast<std::uint8_t>(hex - hexes.begin())};
+            }
+        }
+        return result;
+    }();
+    return spirals;
+}
+
 } // namespace
 
 BoardTopology::BoardTopology() {
@@ -120,35 +151,23 @@ BoardState makeStandardBoard(std::uint32_t seed) {
         Terrain::Mountains, Terrain::Mountains, Terrain::Mountains,
         Terrain::Desert
     };
-    std::array<std::uint8_t, 18> tokens{2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12};
-    const auto& topology = BoardTopology::standard();
+    // Standard A-R token order: our inferred approximation of Colonist's Base map.
+    constexpr std::array<std::uint8_t, 18> tokens{
+        5, 2, 6, 3, 8, 10, 9, 12, 11, 4, 8, 10, 9, 4, 5, 6, 3, 11
+    };
+    std::shuffle(terrains.begin(), terrains.end(), random);
+    for (std::size_t h = 0; h < BoardTopology::HexCount; ++h)
+        board.hexes[h].terrain = terrains[h];
 
-    for (;;) {
-        std::shuffle(terrains.begin(), terrains.end(), random);
-        std::shuffle(tokens.begin(), tokens.end(), random);
-        std::size_t token = 0;
-        for (std::size_t h = 0; h < BoardTopology::HexCount; ++h) {
-            board.hexes[h].terrain = terrains[h];
-            if (terrains[h] == Terrain::Desert) {
-                board.hexes[h].number = 0;
-                board.robberHex = HexId{static_cast<std::uint8_t>(h)};
-            } else {
-                board.hexes[h].number = tokens[token++];
-            }
+    const auto rotation = std::uniform_int_distribution<std::size_t>(0, 5)(random);
+    std::size_t token = 0;
+    for (const auto hex : numberTokenSpirals()[rotation]) {
+        if (board.hexes[hex.value].terrain == Terrain::Desert) {
+            board.hexes[hex.value].number = 0;
+            board.robberHex = hex;
+        } else {
+            board.hexes[hex.value].number = tokens[token++];
         }
-        bool adjacentRed = false;
-        for (const auto& edge : topology.edges) {
-            if (!edge.hexes[0] || !edge.hexes[1]) continue;
-            auto isRed = [&](HexId id) {
-                const auto n = board.hexes[id.value].number;
-                return n == 6 || n == 8;
-            };
-            if (isRed(*edge.hexes[0]) && isRed(*edge.hexes[1])) {
-                adjacentRed = true;
-                break;
-            }
-        }
-        if (!adjacentRed) break;
     }
 
     std::array<PortType, BoardTopology::PortCount> ports{
@@ -156,6 +175,7 @@ BoardState makeStandardBoard(std::uint32_t seed) {
         PortType::Lumber, PortType::Brick, PortType::Wool, PortType::Grain, PortType::Ore
     };
     std::shuffle(ports.begin(), ports.end(), random);
+    const auto& topology = BoardTopology::standard();
     for (std::size_t i = 0; i < ports.size(); ++i) board.ports[i] = {topology.portEdges[i], ports[i]};
     return board;
 }

@@ -362,6 +362,19 @@ The rule-to-test matrix and explicit limits of public Colonist parity are docume
 
 ## Implemented rules
 
+Generated boards approximate Colonist's normal **Base** map: terrain is shuffled,
+then the standard A-R number sequence is placed in a counterclockwise spiral
+from one of six randomly chosen corners, skipping the desert. This keeps red
+numbers (6 and 8) apart without rejection sampling. Port types are shuffled
+among the existing fixed coastal locations.
+
+The spiral is an inference from the standard Catan setup,
+Colonist's [six Base-map orientations](https://colonist.io/patch-notes) (January 5,
+2021), and its separate [Base Random map](https://colonist.io/store). Colonist's
+exact generation algorithm and port distribution are unverified. This generator
+does not model Base Random. Seeds remain reproducible, but generated layouts for
+existing seeds change with this update; imported layouts are preserved.
+
 Discards after a seven resolve simultaneously. In the CLI or live viewer,
 record your discard first, then the opponent's observed discard. Neither hand
 changes until all required choices have been supplied. Rewind cancels pending

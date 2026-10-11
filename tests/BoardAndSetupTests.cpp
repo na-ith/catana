@@ -95,6 +95,50 @@ TEST(board_seed_is_reproducible) {
     CHECK(differs);
 }
 
+TEST(generated_board_numbers_follow_rotated_standard_spirals_and_skip_the_desert) {
+    // Reference rings in counterclockwise order, starting at the right-hand corner.
+    constexpr std::array<std::uint8_t, 12> outer{11, 6, 2, 1, 0, 3, 7, 12, 16, 17, 18, 15};
+    constexpr std::array<std::uint8_t, 6> inner{10, 5, 4, 8, 13, 14};
+    constexpr std::array<std::uint8_t, 18> tokens{
+        5, 2, 6, 3, 8, 10, 9, 12, 11, 4, 8, 10, 9, 4, 5, 6, 3, 11
+    };
+    std::array<std::array<bool, BoardTopology::HexCount>, 6> seen{};
+    for (std::uint32_t seed = 0; seed < 4096; ++seed) {
+        const auto board = makeStandardBoard(seed);
+        CHECK(validateInitialBoard(board));
+        unsigned matches = 0;
+        for (std::size_t rotation = 0; rotation < seen.size(); ++rotation) {
+            std::array<std::uint8_t, BoardTopology::HexCount> expected{};
+            std::size_t token = 0;
+            auto assign = [&](std::uint8_t hex) {
+                if (hex != board.robberHex.value) expected[hex] = tokens[token++];
+            };
+            for (std::size_t i = 0; i < outer.size(); ++i)
+                assign(outer[(i + 2 * rotation) % outer.size()]);
+            for (std::size_t i = 0; i < inner.size(); ++i)
+                assign(inner[(i + rotation) % inner.size()]);
+            assign(9); // Center; it gets R (11) unless it is the desert.
+            bool matching = true;
+            for (std::size_t hex = 0; hex < expected.size(); ++hex)
+                matching &= board.hexes[hex].number == expected[hex];
+            if (matching) {
+                ++matches;
+                seen[rotation][board.robberHex.value] = true;
+            }
+        }
+        CHECK_EQ(matches, 1U);
+
+        for (const auto& edge : BoardTopology::standard().edges) {
+            if (!edge.hexes[1]) continue;
+            const auto a = board.hexes[edge.hexes[0]->value].number;
+            const auto b = board.hexes[edge.hexes[1]->value].number;
+            CHECK(!((a == 6 || a == 8) && (b == 6 || b == 8)));
+        }
+    }
+    for (const auto& orientation : seen)
+        for (const auto desertSeen : orientation) CHECK(desertSeen);
+}
+
 TEST(terrain_maps_to_the_correct_resource) {
     CHECK_EQ(producedResource(Terrain::Forest), std::optional<Resource>{Resource::Lumber});
     CHECK_EQ(producedResource(Terrain::Hills), std::optional<Resource>{Resource::Brick});

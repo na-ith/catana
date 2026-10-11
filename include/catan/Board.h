@@ -79,6 +79,8 @@ struct BoardState {
     bool operator==(const BoardState&) const = default;
 };
 
+// Seeded terrain/port shuffles and standard A-R numbers in one of six spirals.
+// Approximates Colonist's Base map; its exact generator is not published.
 BoardState makeStandardBoard(std::uint32_t seed);
 // Validate a complete, empty standard board before starting initial placement.
 bool validateInitialBoard(const BoardState& board, std::string* reason = nullptr);

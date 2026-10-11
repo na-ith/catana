@@ -55,6 +55,8 @@ class Stepper:
 
 
 def advance_to_buy(stepper, player, cursor=0):
+    setup_resources = {1: set(), 2: set()}
+    purchase_resources = {"pasture", "fields", "mountains"}
     for _ in range(300):
         choices = stepper.actions()
         acting = int(re.search(r"acting: Player (\d+)", stepper.output).group(1))
@@ -62,10 +64,14 @@ def advance_to_buy(stepper, player, cursor=0):
         if acting == player and target is not None:
             return target
         if "| initial settlement |" in stepper.output:
-            # Pick productive setup locations so this exercises actual resource
-            # generation and purchase costs without editing the game state.
-            target = max(choices, key=lambda item: sum(terrain in item[1] for terrain in
-                         ("pasture", "fields", "mountains")) * 10 + item[1].count("H"))[0]
+            # Cover all three purchase resources across each player's two
+            # settlements; a changed seed layout must not strand them without grain.
+            def setup_score(item):
+                adjacent = {terrain for terrain in purchase_resources if terrain in item[1]}
+                return (100 * len(adjacent - setup_resources[acting])
+                        + 10 * len(adjacent) + item[1].count("H"))
+            target, label = max(choices, key=setup_score)
+            setup_resources[acting].update(terrain for terrain in purchase_resources if terrain in label)
         elif "| dice roll |" in stepper.output:
             rolls = [(i, label) for i, label in choices if label.startswith("roll ") and
                      not label.startswith("roll 7 ")]
