@@ -242,7 +242,7 @@ TEST(mcts_keeps_a_yielding_pre_roll_monopoly_for_the_seven_discard_buffer_case) 
     }));
 }
 
-TEST(mcts_defers_pre_roll_road_building_unless_it_can_claim_longest_road) {
+TEST(mcts_defers_pre_roll_road_building_even_when_it_can_claim_longest_road) {
     auto ordinary = blankState(Phase::AwaitRoll);
     const auto ordinaryPath = simplePath(2);
     placeBuilding(ordinary, ordinaryPath.vertices.front(), PlayerId::One);
@@ -264,7 +264,7 @@ TEST(mcts_defers_pre_roll_road_building_unless_it_can_claim_longest_road) {
 
     MctsSession claimingSearch(claiming, fastConfig(1802));
     const auto claimingResult = claimingSearch.result();
-    CHECK(std::any_of(claimingResult.actions.begin(), claimingResult.actions.end(),
+    CHECK(std::none_of(claimingResult.actions.begin(), claimingResult.actions.end(),
         [](const auto& evaluation) {
             return std::holds_alternative<PlayRoadBuilding>(evaluation.action);
         }));
@@ -277,7 +277,7 @@ TEST(mcts_defers_pre_roll_road_building_unless_it_can_claim_longest_road) {
     CHECK(!claim.state().winner.has_value());
 }
 
-TEST(mcts_defers_pre_roll_year_of_plenty_only_when_bank_cards_cannot_be_reserved) {
+TEST(mcts_defers_pre_roll_year_of_plenty_even_when_bank_cards_can_be_reserved) {
     auto abundant = blankState(Phase::AwaitRoll);
     abundant.players[0].developmentCards.cards[index(DevelopmentCard::YearOfPlenty)] = 1;
     CHECK(hasAction<PlayYearOfPlenty>(Game(abundant)));
@@ -312,7 +312,7 @@ TEST(mcts_defers_pre_roll_year_of_plenty_only_when_bank_cards_cannot_be_reserved
 
     MctsSession scarceSearch(scarce, fastConfig(1805));
     const auto scarceResult = scarceSearch.result();
-    CHECK(std::any_of(scarceResult.actions.begin(), scarceResult.actions.end(),
+    CHECK(std::none_of(scarceResult.actions.begin(), scarceResult.actions.end(),
         [](const auto& evaluation) {
             return std::holds_alternative<PlayYearOfPlenty>(evaluation.action);
         }));

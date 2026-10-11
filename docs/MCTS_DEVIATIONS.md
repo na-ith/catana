@@ -166,22 +166,25 @@ information-set or Bayesian search must not inspect the opponent's true hidden
 hand when deciding whether the acting player considers this action useful. At
 that point this prune must operate on beliefs or be removed.
 
-### Safe pre-roll development-card deferral
+### Pre-roll development-card deferral (heuristic)
 
-Pre-roll Road Building is omitted unless an exact look-ahead over its first and
-second free-road placements finds a line that claims Longest Road. Roads do not
-affect production, discards, or a rolled robber, so other road sequences remain
-available after the roll with the benefit of knowing its outcome. Longest Road
-claims are retained as an explicit strategic exception, including claims that
-immediately end the game.
+Pre-roll Road Building is always omitted. Roads do not affect production,
+discards, or a rolled robber, so the road placements can wait until after the
+roll with the benefit of knowing its outcome. Search no longer looks ahead for
+Longest Road claims, including claims that would immediately win: delaying that
+win until after the roll does not change the game's outcome.
 
-Pre-roll Year of Plenty is omitted only when the bank can cover the maximum
-possible production payout for every resource and still leave two cards of
-that resource. In that case the player can reproduce the same two selections
-after every non-seven roll, while waiting through a seven is also at least as
-good after discards. The action is retained when any bank resource is scarce:
-taking scarce cards before rolling can reserve them or deliberately cause a
-production shortage, so blanket pruning would be unsound.
+Pre-roll Year of Plenty is also always omitted. With an abundant bank, the
+player can reproduce the same two selections after every non-seven roll, while
+waiting through a seven is also at least as good after discards.
+
+There is an extreme edge case when bank resources are scarce: taking cards
+before rolling can reserve cards that production would otherwise consume, or
+deliberately cause a production shortage and change the payout. Search still
+skips pre-roll Year of Plenty in this case. Its strategic significance is small,
+so this heuristic deliberately accepts that difference to avoid calculating
+possible production payouts during search. Both cards remain legal before the
+roll in the simulator and available after the roll in search.
 
 ### Identical sibling-state folding
 

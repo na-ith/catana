@@ -47,69 +47,11 @@ double terminalOrHeuristicValue(const GameState& state, PlayerId perspective) {
     if (state.winner) return *state.winner == perspective ? 1.0 : 0.0;
 
     auto strength = [&](PlayerId player) {
-        const auto& value = state.players[index(player)];
-        double score = 4.0 * victoryPoints(state, player);
-        score += 0.10 * total(value.resources);
-        score += 0.20 * value.playedKnights;
-        score += 0.12 * longestRoad(state, player);
-        for (std::size_t card = 0; card < DevelopmentCardTypeCount; ++card)
-            if (card != index(DevelopmentCard::VictoryPoint)) score += 0.12 * value.developmentCards.cards[card];
-        return score;
+        return 1.0 / (15.0 - victoryPoints(state, player));
     };
 
     const double difference = strength(perspective) - strength(opponent(perspective));
-    return 1.0 / (1.0 + std::exp(-difference / 4.0));
-}
-
-bool yearOfPlentyCanBeDeferredWithoutChangingProduction(const GameState& state) {
-    std::array<std::array<unsigned, ResourceCount>, 13> demand{};
-    const auto& topology = BoardTopology::standard();
-    for (std::size_t hexIndex = 0; hexIndex < state.board.hexes.size(); ++hexIndex) {
-        const auto& hex = state.board.hexes[hexIndex];
-        if (hex.number < 2 || hex.number > 12 || hex.number == 7 ||
-            state.board.robberHex.value == hexIndex) continue;
-        const auto resource = producedResource(hex.terrain);
-        if (!resource) continue;
-        for (const auto vertex : topology.hexes[hexIndex].vertices) {
-            const auto& building = state.board.buildings[vertex.value];
-            if (building)
-                demand[hex.number][index(*resource)] +=
-                    building->type == BuildingType::City ? 2U : 1U;
-        }
-    }
-
-    // Reserve enough for the largest possible payout and then for both YOP
-    // selections. Under this condition taking cards before the roll cannot
-    // change production or reserve a card that would be unavailable afterward.
-    for (std::size_t resource = 0; resource < ResourceCount; ++resource) {
-        unsigned maximumDemand = 0;
-        for (std::size_t roll = 2; roll <= 12; ++roll)
-            maximumDemand = std::max(maximumDemand, demand[roll][resource]);
-        if (state.bank.cards[resource] < maximumDemand + 2) return false;
-    }
-    return true;
-}
-
-bool roadBuildingCanClaimLongestRoad(const GameState& state) {
-    const auto player = state.turn.decisionPlayer;
-    if (state.awards.longestRoad == player) return false;
-
-    Game afterCard(state);
-    if (!afterCard.transform(PlayRoadBuilding{}).accepted) return false;
-    for (const auto& firstAction : afterCard.legalTransformations()) {
-        if (!std::holds_alternative<PlaceRoad>(firstAction)) continue;
-        Game afterFirst(afterCard.state());
-        if (!afterFirst.transform(firstAction).accepted) continue;
-        if (afterFirst.state().awards.longestRoad == player) return true;
-        if (afterFirst.state().turn.phase != Phase::FreeRoads) continue;
-        for (const auto& secondAction : afterFirst.legalTransformations()) {
-            if (!std::holds_alternative<PlaceRoad>(secondAction)) continue;
-            Game afterSecond(afterFirst.state());
-            if (afterSecond.transform(secondAction).accepted &&
-                afterSecond.state().awards.longestRoad == player) return true;
-        }
-    }
-    return false;
+    return 1.0 / (1.0 + std::exp(-difference));
 }
 
 bool isPrunedSearchAction(const GameState& state, const Action& action) {
@@ -142,14 +84,11 @@ bool isPrunedSearchAction(const GameState& state, const Action& action) {
         const auto victim = opponent(state.turn.decisionPlayer);
         return state.players[index(victim)].resources[index(monopoly->resource)] == 0;
     }
+    // Defer both cards until after the roll. Year of Plenty's rare bank-shortage
+    // exception is deliberately ignored for search performance (see MCTS_DEVIATIONS.md).
     if (state.turn.phase == Phase::AwaitRoll &&
-        std::holds_alternative<PlayRoadBuilding>(action)) {
-        return !roadBuildingCanClaimLongestRoad(state);
-    }
-    if (state.turn.phase == Phase::AwaitRoll &&
-        std::holds_alternative<PlayYearOfPlenty>(action)) {
-        return yearOfPlentyCanBeDeferredWithoutChangingProduction(state);
-    }
+        (std::holds_alternative<PlayRoadBuilding>(action) ||
+         std::holds_alternative<PlayYearOfPlenty>(action))) return true;
     return false;
 }
 
